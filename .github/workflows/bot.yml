@@ -2,8 +2,8 @@ name: Bot de Hockey FMP
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Se ejecuta cada 15 minutos automáticamente
-  workflow_dispatch: # Nos permite ejecutarlo manualmente con un botón
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   actualizar-datos:
@@ -18,7 +18,9 @@ jobs:
           python-version: '3.10'
 
       - name: Instalar herramientas
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
 
       - name: Ejecutar el Robot
         env:
