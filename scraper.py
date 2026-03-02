@@ -11,34 +11,38 @@ credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
 gc = gspread.service_account_from_dict(credenciales)
 hoja = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Resultados_FMP")
 
-print("2. Abriendo navegador virtual...")
+print("2. Abriendo navegador virtual (Modo Ninja)...")
 url = "http://www.hockeypatines.fmp.es/league/4202"
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+    # Le ponemos disfraces para que la web crea que somos un humano usando Google Chrome
+    browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+    context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    page = context.new_page()
     
     print("   - Cargando la web de la federación...")
     page.goto(url)
     
-    print("   - Esperando a que el código dibuje los partidos...")
-    try:
-        # EL TRUCO ESTÁ AQUÍ: state='attached' (busca en el código fuente, aunque no se vea en pantalla)
-        page.wait_for_selector('tr.team_class', state='attached', timeout=15000)
-        time.sleep(3) # Pausa extra para asegurar que cargan todos los goles
-        print("   - ¡Partidos detectados en el código!")
-    except Exception as e:
-        print("   - Aviso: No aparecieron los partidos a tiempo.")
-        
-    html = page.content()
+    print("   - Esperando 15 segundos de reloj para que cargue absolutamente todo...")
+    page.wait_for_timeout(15000) # Espera bruta de 15 segundos sí o sí
+    
+    print("   - Buscando datos en la web principal y en ventanas ocultas (iframes)...")
+    # Copiamos el código de la web principal Y de cualquier ventana incrustada
+    html_total = page.content()
+    for frame in page.frames:
+        try:
+            html_total += frame.content()
+        except:
+            pass
+            
     browser.close()
 
-soup = BeautifulSoup(html, 'html.parser')
+soup = BeautifulSoup(html_total, 'html.parser')
 partidos = soup.find_all('tr', class_='team_class')
 
 datos_a_guardar = [["Fecha", "Hora", "Equipo Local", "Equipo Visitante", "Resultado"]] 
 
-print(f"3. Se han encontrado {len(partidos)} partidos. Extrayendo goles...")
+print(f"3. ¡BINGO! Se han encontrado {len(partidos)} partidos. Extrayendo goles...")
 for partido in partidos:
     columnas = partido.find_all('td')
     if len(columnas) > 12:
