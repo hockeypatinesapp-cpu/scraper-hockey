@@ -21,14 +21,14 @@ with sync_playwright() as p:
     print("   - Cargando la web de la federación...")
     page.goto(url)
     
-    print("   - Esperando a que el JavaScript dibuje los partidos...")
+    print("   - Esperando a que el código dibuje los partidos...")
     try:
-        # Aquí está el truco: le decimos que no haga NADA hasta que vea la clase 'team_class'
-        page.wait_for_selector('tr.team_class', timeout=15000)
-        time.sleep(2) # Le damos 2 segundos extra para que termine de poner los goles
-        print("   - ¡Partidos detectados en la pantalla!")
+        # EL TRUCO ESTÁ AQUÍ: state='attached' (busca en el código fuente, aunque no se vea en pantalla)
+        page.wait_for_selector('tr.team_class', state='attached', timeout=15000)
+        time.sleep(3) # Pausa extra para asegurar que cargan todos los goles
+        print("   - ¡Partidos detectados en el código!")
     except Exception as e:
-        print("   - Aviso: No aparecieron los partidos a tiempo. Puede que la web esté caída o muy lenta.")
+        print("   - Aviso: No aparecieron los partidos a tiempo.")
         
     html = page.content()
     browser.close()
