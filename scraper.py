@@ -8,7 +8,7 @@ from datetime import datetime
 print("1. Conectando a Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
 gc = gspread.service_account_from_dict(credenciales)
-hoja = gc.open_by_key(os.environ['SHEET_ID']).sheet1
+hoja = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Resultados_FMP")
 
 print("2. Leyendo la web de la Federación...")
 url = "http://www.hockeypatines.fmp.es/league/4202"
