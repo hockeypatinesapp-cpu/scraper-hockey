@@ -1,4 +1,4 @@
+requests
 gspread
 beautifulsoup4
 firebase-admin
-playwright
