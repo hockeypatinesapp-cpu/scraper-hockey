@@ -1,0 +1,22 @@
+name: El Vigilante en Vivo
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Este sí se ejecuta cada 10 minutos
+  workflow_dispatch:
+
+jobs:
+  vigilar-goles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar el Vigilante
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python scraper_vivo.py
