@@ -22,11 +22,12 @@ marcadores_viejos = {}
 try:
     datos_viejos = hoja_memoria.get_all_values()
     for fila in datos_viejos[1:]: # Ignorar cabeceras
-        if len(fila) >= 4:
-            clave = f"{fila[1]}_{fila[2]}" # Local_Visitante
-            marcadores_viejos[clave] = fila[3] # Resultado
+        # Hemos actualizado el índice porque ahora hay más columnas
+        if len(fila) >= 10: 
+            clave = f"{fila[5]}_{fila[7]}" # Local_Visitante
+            marcadores_viejos[clave] = fila[9] # Resultado
 except Exception:
-    pass # Si está vacía, no pasa nada
+    pass
 
 print("3. Mirando el panel en vivo de la Federación...")
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
@@ -35,10 +36,10 @@ headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.
 respuesta = requests.post(url_vivo, headers=headers)
 soup = BeautifulSoup(respuesta.text, 'html.parser')
 
-# Buscamos todos los bloques de partido (los 'a' que contienen 'scorer_game')
 partidos_html = soup.find_all('a', class_=lambda c: c and 'scorer_game' in c)
 
-nuevos_datos = [["Categoría", "Local", "Visitante", "Resultado en Vivo", "Hora del aviso"]]
+# Nuevas cabeceras ampliadas para el Excel
+nuevos_datos = [["Categoría", "Jornada", "Fecha", "Hora", "Situación", "Local", "Logo Local", "Visitante", "Logo Visitante", "Resultado en Vivo", "Hora del aviso"]]
 
 print(f"   -> ¡Se están jugando {len(partidos_html)} partidos ahora mismo!")
 
@@ -49,21 +50,37 @@ for partido in partidos_html:
         visitante = partido.find('div', class_='scorer_team_right').text.strip()
         resultado = partido.find('div', class_='scorer_score').text.strip().replace('\n', ' ')
         
+        # --- EXTRACCIÓN DE NUEVOS DATOS ---
+        # 1. Logos (Buscamos la etiqueta <img> y sacamos el enlace 'src')
+        div_logo_local = partido.find('div', class_='scorer_logo_left')
+        logo_local = div_logo_local.find('img')['src'] if div_logo_local and div_logo_local.find('img') else ""
+        
+        div_logo_visit = partido.find('div', class_='scorer_logo_right')
+        logo_visitante = div_logo_visit.find('img')['src'] if div_logo_visit and div_logo_visit.find('img') else ""
+        
+        # 2. Fecha y Hora (Cortamos el texto "28/02 12:30" por el espacio)
+        bot_left = partido.find('div', class_='scorer_bot_left').text.strip()
+        partes_fecha = bot_left.split(" ")
+        fecha = partes_fecha[0] if len(partes_fecha) > 0 else bot_left
+        hora = partes_fecha[1] if len(partes_fecha) > 1 else ""
+        
+        # 3. Situación y Jornada
+        situacion = partido.find('div', class_='scorer_bot_center').text.strip()
+        jornada = partido.find('div', class_='scorer_bot_right').text.strip()
+        
         if not local or not visitante: continue
             
-        nuevos_datos.append([cat, local, visitante, resultado, str(datetime.now())])
+        # Ordenamos los datos según las nuevas cabeceras
+        nuevos_datos.append([cat, jornada, fecha, hora, situacion, local, logo_local, visitante, logo_visitante, resultado, str(datetime.now())])
         
         # --- EL DISPARADOR DE FIREBASE ---
         clave = f"{local}_{visitante}"
         res_viejo = marcadores_viejos.get(clave)
         
-        # Si el partido ya lo teníamos guardado y el resultado ha cambiado...
         if res_viejo is not None and res_viejo != resultado:
-            # Y no es un partido sin empezar...
             if "SIN COMENZAR" not in resultado.upper() and resultado != "":
                 print(f"   🚨 ¡GOL DETECTADO! {local} {resultado} {visitante}")
                 
-                # ¡Enviamos el Push a los móviles!
                 mensaje = messaging.Message(
                     notification=messaging.Notification(
                         title=f"🚨 ¡Novedades en {cat}!",
@@ -73,9 +90,9 @@ for partido in partidos_html:
                 )
                 messaging.send(mensaje)
     except Exception as e:
-        continue # Si un partido tiene formato raro, lo ignoramos
+        continue 
 
 print("4. Actualizando la Memoria_Vivo en Excel...")
 hoja_memoria.clear()
 hoja_memoria.update(nuevos_datos, 'A1')
-print("¡Turno del Vigilante terminado!")
+print("¡Turno del Vigilante terminado con nuevos campos!")
