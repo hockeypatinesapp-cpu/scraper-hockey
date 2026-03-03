@@ -1,0 +1,21 @@
+name: El Documentalista (Clubes)
+
+on:
+  schedule:
+    - cron: '0 3 1,15 * *' # Días 1 y 15 de cada mes a las 3:00 AM
+  workflow_dispatch: # Botón manual activado
+
+jobs:
+  extraer-clubes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar el Documentalista
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python scraper_clubes.py
