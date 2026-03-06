@@ -32,10 +32,10 @@ categorias = {
     "4198": "1ª AUT. FEM"
 }
 
-# ⚠️ NUEVAS CABECERAS (Ahora tenemos 3 columnas por equipo)
-datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Resultado", "Última Actualización"]]
+# ⚠️ NUEVAS CABECERAS (Ahora incluimos Logo Local y Logo Visitante)
+datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
-print("3. Extrayendo calendarios y unificando nombres...")
+print("3. Extrayendo calendarios, logos y unificando nombres...")
 for liga_id, nombre_cat in categorias.items():
     url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
     headers = {
@@ -69,24 +69,3 @@ for liga_id, nombre_cat in categorias.items():
                     if "00/00/0000" in fecha: continue
                         
                     hora = columnas[2].text.strip()
-                    local_fmp = columnas[6].text.strip()
-                    visitante_fmp = columnas[8].text.strip()
-                    resultado = columnas[11].text.strip()
-                    ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
-                    
-                    if local_fmp and visitante_fmp:
-                        # Buscamos en el diccionario. Si es un equipo nuevo que aún no está, repetimos el nombre base.
-                        datos_loc = diccionario_fmp.get(local_fmp.upper(), {"oficial": local_fmp, "coloquial": local_fmp, "abrev": local_fmp})
-                        datos_vis = diccionario_fmp.get(visitante_fmp.upper(), {"oficial": visitante_fmp, "coloquial": visitante_fmp, "abrev": visitante_fmp})
-                        
-                        datos_a_guardar.append([
-                            nombre_cat, jornada_actual, fecha, hora, 
-                            datos_loc["oficial"], datos_loc["coloquial"], datos_loc["abrev"],
-                            datos_vis["oficial"], datos_vis["coloquial"], datos_vis["abrev"],
-                            resultado, ahora
-                        ])
-
-print("4. Actualizando base de datos central...")
-hoja.clear()
-hoja.update(datos_a_guardar, 'A1')
-print(f"¡SISTEMA COMPLETADO! Excel actualizado.")
