@@ -25,6 +25,12 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
         run: python scraper.py
 
+      - name: Ejecutar la Clasificación
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python scraper_clasificacion.py
+
       - name: Guardar nuevo horario del Vigilante
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
