@@ -69,8 +69,11 @@ for liga_id, nombre_cat in categorias.items():
                 img_tag = columnas[1].find('img')
                 logo = img_tag.get('src', '') if img_tag else ""
                 
-                # Extraer nombre web y limpiar
-                equipo_web = columnas[2].text.strip()
+                # --- LA MAGIA REPARADORA ESTÁ AQUÍ ---
+                # Extraer nombre web y limpiar (buscamos solo el div de ordenador)
+                div_nombre = columnas[2].find('div', class_='no_mobile')
+                equipo_web = div_nombre.text.strip() if div_nombre else columnas[2].text.strip()
+                
                 if not equipo_web: continue
                     
                 # Pasar por el diccionario
