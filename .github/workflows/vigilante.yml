@@ -2,7 +2,11 @@ name: El Vigilante en Vivo
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # De momento lo dejamos que mire cada 15 min. (Luego lo ajustaremos con el Organizador)
+    - cron: '29 18 7 3 *'
+    - cron: '44 10 7 3 *'
+    - cron: '59 16 7 3 *'
+    - cron: '59 14 7 3 *'
+    - cron: '29 11 7 3 *'
   workflow_dispatch:
 
 jobs:
