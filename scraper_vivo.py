@@ -28,18 +28,17 @@ for fila in datos_dicc[1:]:
         diccionario_abrev[fila[2].strip().upper()] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
 
 marcadores_viejos = {}
-estados_viejos = {} # <-- NUEVO: Memoria para detectar el pitido final
+estados_viejos = {} 
 try:
     for fila in hoja_memoria.get_all_values()[1:]:
         if len(fila) >= 14:
             marcadores_viejos[f"{fila[6]}_{fila[10]}"] = fila[13]
-            estados_viejos[f"{fila[6]}_{fila[10]}"] = fila[4] # Situación del partido
+            estados_viejos[f"{fila[6]}_{fila[10]}"] = fila[4]
 except: pass
 
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
 
-# --- CONFIGURACIÓN DE FILTROS ESTRICTOS ---
 CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC"]
 PALABRA_EQUIPO_OBJETIVO = "ROZAS"
 
@@ -59,13 +58,16 @@ while True:
 
     for partido in partidos_html:
         try:
-            cat = partido.find('div', class_='scorer_liga').text.strip()
             local_abrev = partido.find('div', class_='scorer_team_left').text.strip()
             visitante_abrev = partido.find('div', class_='scorer_team_right').text.strip()
+            
+            # --- FILTRO ANTIFANTASMAS ---
+            if not local_abrev or not visitante_abrev or "DESCANSO" in local_abrev.upper() or "DESCANSO" in visitante_abrev.upper(): 
+                continue
+
+            cat = partido.find('div', class_='scorer_liga').text.strip()
             resultado = partido.find('div', class_='scorer_score').text.strip().replace('\n', ' ')
             situacion = partido.find('div', class_='scorer_bot_center').text.strip().upper()
-            
-            if not local_abrev or not visitante_abrev: continue
                 
             datos_loc = diccionario_abrev.get(local_abrev.upper(), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
@@ -94,11 +96,9 @@ while True:
                 resultado, str(datetime.now())
             ])
             
-            # --- DISPARADORES DE ALERTAS Y CLASIFICACIONES ---
             if es_objetivo:
                 clave = f"{nom_loc_col}_{nom_vis_col}"
                 
-                # 1. Avisar si hay un Gol
                 res_viejo = marcadores_viejos.get(clave)
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in situacion:
                     print(f"   🚨 ¡GOL DETECTADO! {nom_loc_col} {resultado} {nom_vis_col}")
@@ -109,7 +109,6 @@ while True:
                     messaging.send(mensaje)
                     marcadores_viejos[clave] = resultado 
                 
-                # 2. Actualizar Tabla al pitar el Final
                 est_viejo = estados_viejos.get(clave)
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
                     print(f"   🏁 ¡PARTIDO TERMINADO! Ejecutando scraper de clasificaciones...")
