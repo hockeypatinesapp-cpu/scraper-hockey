@@ -20,7 +20,6 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 print("2. Leyendo Diccionario y Memoria...")
-# ... [El código del diccionario y memoria se mantiene igual] ...
 datos_dicc = hoja_diccionario.get_all_values()
 diccionario_abrev = {}
 for fila in datos_dicc[1:]:
@@ -37,12 +36,12 @@ except: pass
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
 
-# --- CONFIGURACIÓN DE FILTROS ---
-CATEGORIAS_OBJETIVO = ["JUNIOR", "SUB-17 FEM", "1ª AUT. MASC"]
+# --- CONFIGURACIÓN DE FILTROS ESTRICTOS ---
+CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC"]
 PALABRA_EQUIPO_OBJETIVO = "ROZAS"
 
 tiempo_inicio = time.time()
-minutos_maximos = 13.0 # A los 13 minutos pedimos el relevo
+minutos_maximos = 13.0 # A los 13 minutos pedimos el relevo a GitHub
 
 while True:
     print(f"\n--- [Escaneo a las {datetime.now().strftime('%H:%M:%S')}] ---")
@@ -69,10 +68,12 @@ while True:
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
             nom_loc_col, nom_vis_col = datos_loc["coloquial"], datos_vis["coloquial"]
             
-            # 1. COMPROBAR SI ES UN PARTIDO QUE NOS INTERESA
-            es_objetivo = False
-            if cat.upper() in CATEGORIAS_OBJETIVO or PALABRA_EQUIPO_OBJETIVO in nom_loc_col.upper() or PALABRA_EQUIPO_OBJETIVO in nom_vis_col.upper():
-                es_objetivo = True
+            # 1. COMPROBAR SI ES UN PARTIDO QUE NOS INTERESA DE VERDAD
+            juega_rozas = PALABRA_EQUIPO_OBJETIVO in nom_loc_col.upper() or PALABRA_EQUIPO_OBJETIVO in nom_vis_col.upper()
+            es_categoria = any(c in cat.upper() for c in CATEGORIAS_OBJETIVO)
+            
+            # Tienen que darse las dos condiciones a la vez
+            es_objetivo = juega_rozas and es_categoria
 
             # 2. SI ES OBJETIVO, ANALIZAR SU ESTADO
             if es_objetivo:
@@ -82,7 +83,7 @@ while True:
                     if "DESCANSO" in situacion:
                         hay_objetivos_en_descanso = True
             
-            # Extraer logos, fecha, etc. (como siempre)
+            # Extraer logos, fecha, etc.
             img_loc = partido.find('div', class_='scorer_logo_left').find('img')
             img_vis = partido.find('div', class_='scorer_logo_right').find('img')
             bot_left = partido.find('div', class_='scorer_bot_left').text.strip().split(" ")
@@ -95,7 +96,7 @@ while True:
                 resultado, str(datetime.now())
             ])
             
-            # --- DISPARADOR FIREBASE (Solo avisa de nuestros partidos objetivo) ---
+            # --- DISPARADOR FIREBASE ---
             if es_objetivo:
                 clave = f"{nom_loc_col}_{nom_vis_col}"
                 res_viejo = marcadores_viejos.get(clave)
@@ -115,14 +116,13 @@ while True:
 
     # --- LÓGICA DE TIEMPOS Y RELEVOS ---
     if not hay_objetivos_en_juego:
-        print("\n😴 No hay partidos de Las Rozas ni de las 3 categorías en juego. Me apago.")
+        print("\n😴 No hay partidos de Las Rozas en nuestras categorías objetivo en juego. Me apago.")
         break
         
     tiempo_transcurrido = (time.time() - tiempo_inicio) / 60
     
     if tiempo_transcurrido >= minutos_maximos:
         print("\n⏳ Límite de 13 minutos alcanzado. El partido sigue. ¡Pidiendo el AUTO-RELEVO a GitHub!")
-        # Llamada a la API de GitHub para ejecutar el workflow de nuevo al instante
         url_dispatch = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/vigilante.yml/dispatches"
         headers_gh = {
             "Accept": "application/vnd.github+json",
