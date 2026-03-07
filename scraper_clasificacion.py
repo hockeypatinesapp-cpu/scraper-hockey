@@ -33,13 +33,12 @@ categorias = {
     "4198": "1ª AUT. FEM"
 }
 
-# Cabeceras: 1ª Columna Categoría, Última Timestamp (como pediste)
+# Cabeceras: 1ª Columna Categoría, Última Timestamp
 datos_a_guardar = [["Categoría", "Pos", "Logo", "Oficial", "Coloquial", "Abrev", "PT", "PJ", "PG", "PE", "PP", "GF", "GC", "Gav", "PEN", "Última Actualización"]]
 
 print("3. Extrayendo las tablas de clasificación...")
 for liga_id, nombre_cat in categorias.items():
     try:
-        # La URL secreta de la clasificación que cazaste en el Network
         url_clasif = f"https://www.server2.sidgad.es/fmp/fmp_clasif_idc_{liga_id}_1.php"
         headers = {
             'User-Agent': 'Mozilla/5.0',
@@ -52,7 +51,6 @@ for liga_id, nombre_cat in categorias.items():
         respuesta = requests.post(url_clasif, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
-        # Buscamos la tabla principal por su clase HTML
         tabla = soup.find('table', class_='tabla_clasif')
         if not tabla: continue
             
@@ -61,25 +59,21 @@ for liga_id, nombre_cat in categorias.items():
         
         for fila in filas:
             columnas = fila.find_all('td')
-            # Nos aseguramos de que es una fila de equipo (tiene al menos 12 columnas)
             if len(columnas) >= 12:
                 posicion = columnas[0].text.strip()
                 
-                # Extraer URL del logo
                 img_tag = columnas[1].find('img')
                 logo = img_tag.get('src', '') if img_tag else ""
                 
-                # --- LA MAGIA REPARADORA ESTÁ AQUÍ ---
-                # Extraer nombre web y limpiar (buscamos solo el div de ordenador)
                 div_nombre = columnas[2].find('div', class_='no_mobile')
                 equipo_web = div_nombre.text.strip() if div_nombre else columnas[2].text.strip()
                 
-                if not equipo_web: continue
+                # --- FILTRO ANTIFANTASMAS ---
+                if not equipo_web or "DESCANSO" in equipo_web.upper(): 
+                    continue
                     
-                # Pasar por el diccionario
                 datos_equipo = diccionario_fmp.get(equipo_web.upper(), {"oficial": equipo_web, "coloquial": equipo_web, "abrev": equipo_web})
                 
-                # Extraer estadísticas
                 pt = columnas[3].text.strip()
                 pj = columnas[4].text.strip()
                 pg = columnas[5].text.strip()
@@ -90,7 +84,6 @@ for liga_id, nombre_cat in categorias.items():
                 gav = columnas[10].text.strip()
                 pen = columnas[11].text.strip()
                 
-                # Añadir fila maestra
                 datos_a_guardar.append([
                     nombre_cat, posicion, logo, 
                     datos_equipo["oficial"], datos_equipo["coloquial"], datos_equipo["abrev"], 
