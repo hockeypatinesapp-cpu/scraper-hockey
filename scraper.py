@@ -69,14 +69,12 @@ for liga_id, nombre_cat in categorias.items():
                             
                         hora = columnas[2].text.strip()
                         
-                        # --- EXTRACCIÓN DE LOGOS CON SEGURIDAD ANTIFALLOS ---
+                        # --- EXTRACCIÓN DE LOGOS (SÓLO URL) ---
                         img_local = columnas[5].find('img')
-                        url_loc = img_local.get('src', '') if img_local else ""
-                        logo_local = f'=IMAGE("{url_loc}")' if url_loc else ""
+                        logo_local = img_local.get('src', '') if img_local else ""
                         
                         img_visitante = columnas[7].find('img')
-                        url_vis = img_visitante.get('src', '') if img_visitante else ""
-                        logo_visitante = f'=IMAGE("{url_vis}")' if url_vis else ""
+                        logo_visitante = img_visitante.get('src', '') if img_visitante else ""
                         
                         local_fmp = columnas[6].text.strip()
                         visitante_fmp = columnas[8].text.strip()
@@ -94,15 +92,13 @@ for liga_id, nombre_cat in categorias.items():
                                 resultado, ahora
                             ])
     except Exception as e:
-        print(f"      ❌ Error aisaldo procesando la liga {nombre_cat}: {e}")
+        print(f"      ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
 print("4. Actualizando base de datos central...")
 try:
     hoja.clear()
-    # Usamos el formato moderno de gspread
     hoja.update(values=datos_a_guardar, range_name='A1', value_input_option='USER_ENTERED')
     print("¡SISTEMA COMPLETADO! Excel actualizado.")
 except TypeError:
-    # Si GitHub tiene instalada una versión antigua, usamos el formato clásico
     hoja.update('A1', datos_a_guardar, value_input_option='USER_ENTERED')
     print("¡SISTEMA COMPLETADO! Excel actualizado (Modo clásico).")
