@@ -19,9 +19,18 @@ for fila in datos_dicc[1:]:
     if len(fila) >= 3:
         fmp = fila[0].strip().upper()
         if fmp:
-            diccionario_fmp[fmp] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
+            diccionario_fmp[fmp] = {
+                "oficial": fila[0].strip(), 
+                "coloquial": fila[1].strip(), 
+                "abrev": fila[2].strip()
+            }
 
-categorias = {"4186": "JUNIOR", "4202": "SUB-17 FEM", "4187": "1ª AUT. MASC", "4198": "1ª AUT. FEM"}
+categorias = {
+    "4186": "JUNIOR",
+    "4202": "SUB-17 FEM",
+    "4187": "1ª AUT. MASC",
+    "4198": "1ª AUT. FEM"
+}
 
 datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
@@ -29,7 +38,11 @@ print("3. Extrayendo calendarios...")
 for liga_id, nombre_cat in categorias.items():
     try:
         url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
-        headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+        headers = {
+            'User-Agent': 'Mozilla/5.0',
+            'Origin': 'http://www.hockeypatines.fmp.es',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        }
         payload = {'idc': liga_id, 'site_lang': 'es'}
         
         respuesta = requests.post(url_secreta, headers=headers, data=payload)
@@ -64,9 +77,14 @@ for liga_id, nombre_cat in categorias.items():
                             datos_loc = diccionario_fmp.get(local_fmp.upper(), {"oficial": local_fmp, "coloquial": local_fmp, "abrev": local_fmp})
                             datos_vis = diccionario_fmp.get(visitante_fmp.upper(), {"oficial": visitante_fmp, "coloquial": visitante_fmp, "abrev": visitante_fmp})
                             
-                            datos_a_guardar.append([nombre_cat, jornada_actual, fecha, hora, datos_loc["oficial"], datos_loc["coloquial"], datos_loc["abrev"], logo_loc, datos_vis["oficial"], datos_vis["coloquial"], datos_vis["abrev"], logo_vis, resultado, ahora])
+                            datos_a_guardar.append([
+                                nombre_cat, jornada_actual, fecha, hora, 
+                                datos_loc["oficial"], datos_loc["coloquial"], datos_loc["abrev"], logo_loc, 
+                                datos_vis["oficial"], datos_vis["coloquial"], datos_vis["abrev"], logo_vis, 
+                                resultado, ahora
+                            ])
     except Exception as e:
-        pass
+        print(f"      ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
 print("4. Actualizando base de datos central...")
 try:
@@ -85,7 +103,7 @@ hoy = datetime.now(zona_madrid)
 hoy_str = hoy.strftime("%d/%m/%Y")
 
 horas_objetivo = set()
-CATEGORIAS_OBJETIVO = ["JUNIOR", "SUB-17 FEM", "1ª AUT. MASC"]
+CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC"]
 PALABRA_EQUIPO_OBJETIVO = "ROZAS"
 
 for fila in datos_a_guardar[1:]:
@@ -96,33 +114,29 @@ for fila in datos_a_guardar[1:]:
     vis_col = fila[9].upper()
 
     if fecha == hoy_str and hora:
-        if cat in CATEGORIAS_OBJETIVO or PALABRA_EQUIPO_OBJETIVO in loc_col or PALABRA_EQUIPO_OBJETIVO in vis_col:
+        # Tienen que darse OBLIGATORIAMENTE las dos condiciones
+        juega_rozas = PALABRA_EQUIPO_OBJETIVO in loc_col or PALABRA_EQUIPO_OBJETIVO in vis_col
+        es_categoria = any(c in cat for c in CATEGORIAS_OBJETIVO)
+        
+        if juega_rozas and es_categoria:
             horas_objetivo.add(hora)
 
 crons_generados = []
 for h in horas_objetivo:
     try:
-        # Fusionamos la fecha de hoy con la hora del partido
         hora_dt = datetime.strptime(f"{hoy_str} {h}", "%d/%m/%Y %H:%M")
         hora_dt = zona_madrid.localize(hora_dt)
-        
-        # Le restamos exactamente 1 minuto al reloj
         hora_inicio = hora_dt - timedelta(minutes=1)
-        
-        # Lo pasamos a hora UTC para que GitHub lo entienda perfectamente
         hora_utc = hora_inicio.astimezone(pytz.utc)
-        
-        # Creamos la línea de código para GitHub Actions
         cron_str = f"    - cron: '{hora_utc.minute} {hora_utc.hour} {hora_utc.day} {hora_utc.month} *'\n"
         crons_generados.append(cron_str)
     except Exception:
         pass
 
 if not crons_generados:
-    print("   -> Hoy no hay partidos que vigilar. Desactivando el Vigilante.")
-    crons_generados.append("    - cron: '0 0 31 2 *'\n") # Fecha imposible (31 de febrero) para apagarlo
+    print("   -> Hoy no hay partidos de nuestras categorías objetivo que vigilar. Desactivando el Vigilante.")
+    crons_generados.append("    - cron: '0 0 31 2 *'\n")
 
-# Escribir la nueva alarma en el archivo vigilante.yml
 ruta_yml = ".github/workflows/vigilante.yml"
 if os.path.exists(ruta_yml):
     with open(ruta_yml, 'r', encoding='utf-8') as f:
@@ -136,7 +150,7 @@ if os.path.exists(ruta_yml):
             nuevas_lineas.extend(crons_generados)
             en_schedule = True
         elif en_schedule and linea.strip().startswith("- cron:"):
-            continue # Borramos las alarmas de ayer
+            continue 
         elif en_schedule and not linea.strip().startswith("- cron:"):
             en_schedule = False
             nuevas_lineas.append(linea)
@@ -146,3 +160,5 @@ if os.path.exists(ruta_yml):
     with open(ruta_yml, 'w', encoding='utf-8') as f:
         f.writelines(nuevas_lineas)
     print("¡Alarmas reconfiguradas con éxito!")
+else:
+    print(f"⚠️ No se encontró el archivo {ruta_yml} para actualizar las alarmas.")
