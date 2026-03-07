@@ -63,13 +63,18 @@ for liga_id, nombre_cat in categorias.items():
                         if "00/00/0000" in fecha: continue
                         hora = columnas[2].text.strip()
                         
+                        local_fmp = columnas[6].text.strip()
+                        visitante_fmp = columnas[8].text.strip()
+                        
+                        # --- FILTRO ANTIFANTASMAS ---
+                        if "DESCANSO" in local_fmp.upper() or "DESCANSO" in visitante_fmp.upper():
+                            continue
+                        
                         img_loc = columnas[5].find('img')
                         logo_loc = img_loc.get('src', '') if img_loc else ""
                         img_vis = columnas[7].find('img')
                         logo_vis = img_vis.get('src', '') if img_vis else ""
                         
-                        local_fmp = columnas[6].text.strip()
-                        visitante_fmp = columnas[8].text.strip()
                         resultado = columnas[11].text.strip()
                         ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
                         
@@ -93,7 +98,6 @@ try:
 except TypeError:
     hoja.update('A1', datos_a_guardar, value_input_option='USER_ENTERED')
 
-
 # =======================================================
 # FASE 5: LA MAGIA DEL DESPERTADOR DINÁMICO (-1 MINUTO)
 # =======================================================
@@ -114,7 +118,6 @@ for fila in datos_a_guardar[1:]:
     vis_col = fila[9].upper()
 
     if fecha == hoy_str and hora:
-        # Tienen que darse OBLIGATORIAMENTE las dos condiciones
         juega_rozas = PALABRA_EQUIPO_OBJETIVO in loc_col or PALABRA_EQUIPO_OBJETIVO in vis_col
         es_categoria = any(c in cat for c in CATEGORIAS_OBJETIVO)
         
