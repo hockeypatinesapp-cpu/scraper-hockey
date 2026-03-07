@@ -4,6 +4,7 @@ import time
 import gspread
 import requests
 import firebase_admin
+import subprocess
 from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -27,10 +28,12 @@ for fila in datos_dicc[1:]:
         diccionario_abrev[fila[2].strip().upper()] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
 
 marcadores_viejos = {}
+estados_viejos = {} # <-- NUEVO: Memoria para detectar el pitido final
 try:
     for fila in hoja_memoria.get_all_values()[1:]:
         if len(fila) >= 14:
             marcadores_viejos[f"{fila[6]}_{fila[10]}"] = fila[13]
+            estados_viejos[f"{fila[6]}_{fila[10]}"] = fila[4] # Situación del partido
 except: pass
 
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
@@ -41,7 +44,7 @@ CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª 
 PALABRA_EQUIPO_OBJETIVO = "ROZAS"
 
 tiempo_inicio = time.time()
-minutos_maximos = 13.0 # A los 13 minutos pedimos el relevo a GitHub
+minutos_maximos = 13.0 
 
 while True:
     print(f"\n--- [Escaneo a las {datetime.now().strftime('%H:%M:%S')}] ---")
@@ -68,14 +71,10 @@ while True:
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
             nom_loc_col, nom_vis_col = datos_loc["coloquial"], datos_vis["coloquial"]
             
-            # 1. COMPROBAR SI ES UN PARTIDO QUE NOS INTERESA DE VERDAD
             juega_rozas = PALABRA_EQUIPO_OBJETIVO in nom_loc_col.upper() or PALABRA_EQUIPO_OBJETIVO in nom_vis_col.upper()
             es_categoria = any(c in cat.upper() for c in CATEGORIAS_OBJETIVO)
-            
-            # Tienen que darse las dos condiciones a la vez
             es_objetivo = juega_rozas and es_categoria
 
-            # 2. SI ES OBJETIVO, ANALIZAR SU ESTADO
             if es_objetivo:
                 estados_inactivos = ["FINAL", "SIN COMENZAR", "APLAZAD", "CANCELAD", "SUSPENDID"]
                 if not any(estado in situacion for estado in estados_inactivos):
@@ -83,7 +82,6 @@ while True:
                     if "DESCANSO" in situacion:
                         hay_objetivos_en_descanso = True
             
-            # Extraer logos, fecha, etc.
             img_loc = partido.find('div', class_='scorer_logo_left').find('img')
             img_vis = partido.find('div', class_='scorer_logo_right').find('img')
             bot_left = partido.find('div', class_='scorer_bot_left').text.strip().split(" ")
@@ -96,9 +94,11 @@ while True:
                 resultado, str(datetime.now())
             ])
             
-            # --- DISPARADOR FIREBASE ---
+            # --- DISPARADORES DE ALERTAS Y CLASIFICACIONES ---
             if es_objetivo:
                 clave = f"{nom_loc_col}_{nom_vis_col}"
+                
+                # 1. Avisar si hay un Gol
                 res_viejo = marcadores_viejos.get(clave)
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in situacion:
                     print(f"   🚨 ¡GOL DETECTADO! {nom_loc_col} {resultado} {nom_vis_col}")
@@ -108,13 +108,21 @@ while True:
                     )
                     messaging.send(mensaje)
                     marcadores_viejos[clave] = resultado 
+                
+                # 2. Actualizar Tabla al pitar el Final
+                est_viejo = estados_viejos.get(clave)
+                if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
+                    print(f"   🏁 ¡PARTIDO TERMINADO! Ejecutando scraper de clasificaciones...")
+                    subprocess.run(["python", "scraper_clasificacion.py"])
+                    estados_viejos[clave] = situacion
+                elif est_viejo is None:
+                    estados_viejos[clave] = situacion
 
         except Exception as e: continue 
 
     hoja_memoria.clear()
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
 
-    # --- LÓGICA DE TIEMPOS Y RELEVOS ---
     if not hay_objetivos_en_juego:
         print("\n😴 No hay partidos de Las Rozas en nuestras categorías objetivo en juego. Me apago.")
         break
