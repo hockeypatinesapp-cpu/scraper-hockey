@@ -1,28 +1,36 @@
-name: Bot de Hockey FMP
+name: Bot Calendario FMP
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 3 * * *' # Se ejecuta todos los días a las 3:00 de la madrugada
   workflow_dispatch:
 
 jobs:
   actualizar-datos:
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar archivos
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_TOKEN }} # Usamos tu llave maestra aquí para poder escribir en tu repo
 
-      - name: Preparar Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      - name: Instalar herramientas
-        run: pip install -r requirements.txt
-
-      - name: Ejecutar el Robot
+          
+      - run: pip install -r requirements.txt
+      
+      - name: Ejecutar el Organizador
         env:
           CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
-          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
           SHEET_ID: ${{ secrets.SHEET_ID }}
         run: python scraper.py
+
+      - name: Guardar nuevo horario del Vigilante
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global user.name "Robot Organizador"
+          git config --global user.email "bot@hockeypatines.com"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
+          git add .github/workflows/vigilante.yml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "⏰ Despertador dinámico actualizado para hoy" && git push)
