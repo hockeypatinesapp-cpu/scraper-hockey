@@ -2,7 +2,7 @@ name: El Vigilante en Vivo
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # Este sí se ejecuta cada 10 minutos
+    - cron: '*/15 * * * *' # De momento lo dejamos que mire cada 15 min. (Luego lo ajustaremos con el Organizador)
   workflow_dispatch:
 
 jobs:
@@ -19,4 +19,6 @@ jobs:
           CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
           FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
           SHEET_ID: ${{ secrets.SHEET_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }} # LA NUEVA LLAVE MAESTRA
+          GITHUB_REPOSITORY: ${{ github.repository }} # RUTA AUTOMÁTICA DEL REPO
         run: python scraper_vivo.py
