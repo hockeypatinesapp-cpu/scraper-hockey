@@ -7,7 +7,7 @@ import firebase_admin
 import subprocess
 from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 
 print("1. Despertando al Vigilante Inteligente...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -39,6 +39,7 @@ except: pass
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
 
+# Mantenemos tus 4 categorías comentadas + Juvenil por si acaso
 CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC"]
 PALABRA_EQUIPO_OBJETIVO = "ROZAS"
 
@@ -46,7 +47,10 @@ tiempo_inicio = time.time()
 minutos_maximos = 13.0 
 
 while True:
-    print(f"\n--- [Escaneo a las {datetime.now().strftime('%H:%M:%S')}] ---")
+    # Ajuste horario visual para el log
+    ahora_espana = datetime.utcnow() + timedelta(hours=1)
+    print(f"\n--- [Escaneo a las {ahora_espana.strftime('%H:%M:%S')}] ---")
+    
     respuesta = requests.post(url_vivo, headers=headers)
     soup = BeautifulSoup(respuesta.text, 'html.parser')
     
@@ -61,7 +65,6 @@ while True:
             local_abrev = partido.find('div', class_='scorer_team_left').text.strip()
             visitante_abrev = partido.find('div', class_='scorer_team_right').text.strip()
             
-            # --- FILTRO ANTIFANTASMAS ---
             if not local_abrev or not visitante_abrev or "DESCANSO" in local_abrev.upper() or "DESCANSO" in visitante_abrev.upper(): 
                 continue
 
@@ -88,12 +91,15 @@ while True:
             img_vis = partido.find('div', class_='scorer_logo_right').find('img')
             bot_left = partido.find('div', class_='scorer_bot_left').text.strip().split(" ")
             
+            # --- ARREGLO DE LA HORA EN EL EXCEL ---
+            hora_registro = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+            
             nuevos_datos.append([
                 cat, partido.find('div', class_='scorer_bot_right').text.strip(), 
                 bot_left[0] if len(bot_left)>0 else "", bot_left[1] if len(bot_left)>1 else "", 
                 situacion, datos_loc["oficial"], nom_loc_col, datos_loc["abrev"], img_loc['src'] if img_loc else "",
                 datos_vis["oficial"], nom_vis_col, datos_vis["abrev"], img_vis['src'] if img_vis else "", 
-                resultado, str(datetime.now())
+                resultado, hora_registro
             ])
             
             if es_objetivo:
@@ -111,8 +117,10 @@ while True:
                 
                 est_viejo = estados_viejos.get(clave)
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
-                    print(f"   🏁 ¡PARTIDO TERMINADO! Ejecutando scraper de clasificaciones...")
-                    subprocess.run(["python", "scraper_clasificacion.py"])
+                    # --- NUEVA MAGIA: ACTUALIZACIÓN DOBLE ---
+                    print(f"   🏁 ¡PARTIDO TERMINADO! Actualizando Resultados y Clasificaciones...")
+                    subprocess.run(["python", "scraper.py"]) # Actualiza Resultados_FMP
+                    subprocess.run(["python", "scraper_clasificacion.py"]) # Actualiza Clasificacion_FMP
                     estados_viejos[clave] = situacion
                 elif est_viejo is None:
                     estados_viejos[clave] = situacion
