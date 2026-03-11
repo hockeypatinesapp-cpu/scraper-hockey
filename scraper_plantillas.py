@@ -36,15 +36,21 @@ print("3. Extrayendo las estadísticas y fotos de los jugadores (Modo Detective)
 for liga_id, nombre_cat in categorias.items():
     print(f" -> Procesando liga: {nombre_cat}...")
     try:
-        # 1. Sacamos la tabla principal
-        url_stats = f"https://www.server2.sidgad.es/fmp/fmp_stats_idc_{liga_id}_1.php"
+        # --- LA CORRECCIÓN EXACTA DE LA URL ---
+        url_stats = f"https://www.server2.sidgad.es/fmp/fmp_stats_1_{liga_id}.php"
         headers = {
             'User-Agent': 'Mozilla/5.0',
             'Origin': 'http://www.hockeypatines.fmp.es',
             'Referer': f'http://www.hockeypatines.fmp.es/league/{liga_id}',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }
-        payload = {'idc': liga_id, 'site_lang': 'es'}
+        
+        # --- LA CORRECCIÓN DEL PAYLOAD ---
+        payload = {
+            'idc': liga_id, 
+            'tipo_stats': 'plantillas', 
+            'site_lang': 'es'
+        }
         
         respuesta = requests.post(url_stats, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
@@ -70,7 +76,6 @@ for liga_id, nombre_cat in categorias.items():
             # --- MODO DETECTIVE: EXTRACCIÓN DINÁMICA DE LA FOTO ---
             url_foto = ""
             if id_jugador and id_equipo:
-                # La URL secreta que descubrimos en el Network (39 = Temporada 25/26)
                 url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_39.php"
                 payload_perfil = {
                     'idm': '1',
@@ -92,9 +97,9 @@ for liga_id, nombre_cat in categorias.items():
                             url_sucia = parte_derecha.split(')')[0]
                             url_foto = url_sucia.strip("'\" ")
                 except Exception as e:
-                    pass # Si falla la foto de un jugador, ignoramos el error y seguimos
+                    pass
                 
-                # Pausa de cortesía para no bloquear el servidor de la federación
+                # Pausa de cortesía
                 time.sleep(0.5)
             
             # --- ESTADÍSTICAS ---
