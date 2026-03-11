@@ -12,15 +12,15 @@ gc = gspread.service_account_from_dict(credenciales)
 
 hoja_plantillas = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Plantillas_FMP")
 
-print("2. Leyendo el Diccionario de Equipos...")
+print("2. Leyendo el Diccionario de Equipos (por Abreviatura)...")
 hoja_diccionario = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Diccionario_Equipos")
 datos_dicc = hoja_diccionario.get_all_values()
-diccionario_fmp = {}
+diccionario_abrev = {}
 for fila in datos_dicc[1:]: 
     if len(fila) >= 3:
-        fmp = fila[0].strip().upper()
-        if fmp:
-            diccionario_fmp[fmp] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
+        abrev = fila[2].strip().upper() # Ahora usamos la abreviatura como llave
+        if abrev:
+            diccionario_abrev[abrev] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
 
 categorias = {
     "4186": "JUNIOR",
@@ -29,14 +29,13 @@ categorias = {
     "4198": "1ª AUT. FEM"
 }
 
-# Cabeceras completas
-datos_a_guardar = [["Categoría", "Equipo Oficial", "Equipo Coloquial", "Equipo Abrev", "Nombre Jugador", "ID Jugador", "Foto URL", "Goles", "PJ", "Media Goles", "Asistencias", "Media Asist", "Faltas Directas", "Media FD", "Penaltis", "Media Pen", "Azules", "Media Azules", "Rojas", "Media Rojas", "Última Actualización"]]
+# Cabeceras ampliadas con ID Equipo, Logo y Bandera
+datos_a_guardar = [["Categoría", "Equipo Oficial", "Equipo Coloquial", "Equipo Abrev", "ID Equipo", "Logo Club", "Bandera", "Nombre Jugador", "ID Jugador", "Foto URL", "Goles", "PJ", "Media Goles", "Asistencias", "Media Asist", "Faltas Directas", "Media FD", "Penaltis", "Media Pen", "Azules", "Media Azules", "Rojas", "Media Rojas", "Última Actualización"]]
 
-print("3. Extrayendo las estadísticas y fotos de los jugadores (Modo Detective)...")
+print("3. Extrayendo las estadísticas y fotos de los jugadores...")
 for liga_id, nombre_cat in categorias.items():
     print(f" -> Procesando liga: {nombre_cat}...")
     try:
-        # --- LA CORRECCIÓN EXACTA DE LA URL ---
         url_stats = f"https://www.server2.sidgad.es/fmp/fmp_stats_1_{liga_id}.php"
         headers = {
             'User-Agent': 'Mozilla/5.0',
@@ -45,7 +44,6 @@ for liga_id, nombre_cat in categorias.items():
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }
         
-        # --- LA CORRECCIÓN DEL PAYLOAD ---
         payload = {
             'idc': liga_id, 
             'tipo_stats': 'plantillas', 
@@ -62,10 +60,18 @@ for liga_id, nombre_cat in categorias.items():
             columnas = fila.find_all('td')
             if len(columnas) < 15: continue
             
-            # --- DATOS BÁSICOS ---
-            abrev_equipo = columnas[1].text.strip().upper()
-            datos_equipo = diccionario_fmp.get(abrev_equipo, {"oficial": abrev_equipo, "coloquial": abrev_equipo, "abrev": abrev_equipo})
+            # --- 1. DATOS DEL EQUIPO (Corregido) ---
+            texto_equipo = columnas[1].text.strip().upper()
+            datos_equipo = diccionario_abrev.get(texto_equipo, {"oficial": texto_equipo, "coloquial": texto_equipo, "abrev": texto_equipo})
             
+            # --- 2. LOGO Y BANDERA ---
+            img_logo = columnas[2].find('img')
+            url_logo = img_logo.get('src', '') if img_logo else ""
+            
+            img_bandera = columnas[3].find('img')
+            url_bandera = img_bandera.get('src', '') if img_bandera else ""
+            
+            # --- 3. DATOS BÁSICOS DEL JUGADOR ---
             enlace = fila.find('a', class_='nombre_ficha_jugador_plus')
             if not enlace: continue
             
@@ -73,7 +79,7 @@ for liga_id, nombre_cat in categorias.items():
             id_jugador = enlace.get('id_player', '').strip()
             id_equipo = enlace.get('team_id', '').strip()
             
-            # --- MODO DETECTIVE: EXTRACCIÓN DINÁMICA DE LA FOTO ---
+            # --- 4. EXTRACCIÓN DINÁMICA DE LA FOTO ---
             url_foto = ""
             if id_jugador and id_equipo:
                 url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_39.php"
@@ -99,10 +105,9 @@ for liga_id, nombre_cat in categorias.items():
                 except Exception as e:
                     pass
                 
-                # Pausa de cortesía
                 time.sleep(0.5)
             
-            # --- ESTADÍSTICAS ---
+            # --- 5. ESTADÍSTICAS ---
             goles = columnas[5].text.strip()
             pj = columnas[6].text.strip()
             m_goles = columnas[7].text.strip()
@@ -121,6 +126,7 @@ for liga_id, nombre_cat in categorias.items():
             datos_a_guardar.append([
                 nombre_cat, 
                 datos_equipo["oficial"], datos_equipo["coloquial"], datos_equipo["abrev"], 
+                id_equipo, url_logo, url_bandera,
                 nombre, id_jugador, url_foto, 
                 goles, pj, m_goles, asist, m_asist, fd, m_fd, pen, m_pen, azul, m_azul, roja, m_roja, 
                 ahora
