@@ -1,0 +1,19 @@
+name: Actualizar Plantillas y Stats
+
+on:
+  workflow_dispatch: # Esto crea el botón manual en GitHub
+
+jobs:
+  actualizar-plantillas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar el Robot de Plantillas
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python scraper_plantillas.py
