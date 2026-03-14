@@ -2,7 +2,7 @@ name: El Vigilante en Vivo
 
 on:
   schedule:
-    - cron: '44 17 13 3 *'
+    - cron: '59 14 14 3 *'
   workflow_dispatch:
 
 jobs:
