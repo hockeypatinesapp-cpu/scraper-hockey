@@ -39,15 +39,13 @@ except: pass
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
 
-# Mantenemos tus 4 categorías comentadas + Juvenil por si acaso
-CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC"]
-PALABRA_EQUIPO_OBJETIVO = "ROZAS"
+CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC", "1ª AUTONÓMICA MASCULINA", "1ª AUTONOMICA MASCULINA"]
+PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
 tiempo_inicio = time.time()
 minutos_maximos = 13.0 
 
 while True:
-    # Ajuste horario visual para el log
     ahora_espana = datetime.utcnow() + timedelta(hours=1)
     print(f"\n--- [Escaneo a las {ahora_espana.strftime('%H:%M:%S')}] ---")
     
@@ -59,6 +57,7 @@ while True:
     
     hay_objetivos_en_juego = False
     hay_objetivos_en_descanso = False
+    hay_objetivos_en_calentamiento = False # <-- NUEVO ESTADO DE ESPERA
 
     for partido in partidos_html:
         try:
@@ -75,30 +74,34 @@ while True:
             datos_loc = diccionario_abrev.get(local_abrev.upper(), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
             nom_loc_col, nom_vis_col = datos_loc["coloquial"], datos_vis["coloquial"]
+            abrev_loc, abrev_vis = datos_loc["abrev"], datos_vis["abrev"]
             
-            juega_rozas = PALABRA_EQUIPO_OBJETIVO in nom_loc_col.upper() or PALABRA_EQUIPO_OBJETIVO in nom_vis_col.upper()
+            juega_rozas = any(p in nom_loc_col.upper() or p in nom_vis_col.upper() or p == abrev_loc.upper() or p == abrev_vis.upper() for p in PALABRAS_EQUIPO_OBJETIVO)
             es_categoria = any(c in cat.upper() for c in CATEGORIAS_OBJETIVO)
             es_objetivo = juega_rozas and es_categoria
 
             if es_objetivo:
-                estados_inactivos = ["FINAL", "SIN COMENZAR", "APLAZAD", "CANCELAD", "SUSPENDID"]
-                if not any(estado in situacion for estado in estados_inactivos):
+                # HEMOS QUITADO "SIN COMENZAR" DE ESTA LISTA DE MUERTE
+                estados_muertos = ["FINAL", "APLAZAD", "CANCELAD", "SUSPENDID"]
+                
+                if not any(estado in situacion for estado in estados_muertos):
                     hay_objetivos_en_juego = True
                     if "DESCANSO" in situacion:
                         hay_objetivos_en_descanso = True
+                    elif "SIN COMENZAR" in situacion:
+                        hay_objetivos_en_calentamiento = True
             
             img_loc = partido.find('div', class_='scorer_logo_left').find('img')
             img_vis = partido.find('div', class_='scorer_logo_right').find('img')
             bot_left = partido.find('div', class_='scorer_bot_left').text.strip().split(" ")
             
-            # --- ARREGLO DE LA HORA EN EL EXCEL ---
             hora_registro = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
             
             nuevos_datos.append([
                 cat, partido.find('div', class_='scorer_bot_right').text.strip(), 
                 bot_left[0] if len(bot_left)>0 else "", bot_left[1] if len(bot_left)>1 else "", 
-                situacion, datos_loc["oficial"], nom_loc_col, datos_loc["abrev"], img_loc['src'] if img_loc else "",
-                datos_vis["oficial"], nom_vis_col, datos_vis["abrev"], img_vis['src'] if img_vis else "", 
+                situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
+                datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", 
                 resultado, hora_registro
             ])
             
@@ -117,10 +120,9 @@ while True:
                 
                 est_viejo = estados_viejos.get(clave)
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
-                    # --- NUEVA MAGIA: ACTUALIZACIÓN DOBLE ---
                     print(f"   🏁 ¡PARTIDO TERMINADO! Actualizando Resultados y Clasificaciones...")
-                    subprocess.run(["python", "scraper.py"]) # Actualiza Resultados_FMP
-                    subprocess.run(["python", "scraper_clasificacion.py"]) # Actualiza Clasificacion_FMP
+                    subprocess.run(["python", "scraper.py"])
+                    subprocess.run(["python", "scraper_clasificacion.py"])
                     estados_viejos[clave] = situacion
                 elif est_viejo is None:
                     estados_viejos[clave] = situacion
@@ -147,9 +149,13 @@ while True:
         requests.post(url_dispatch, headers=headers_gh, json={"ref": "main"})
         break
 
+    # --- NUEVA LÓGICA DE ESPERA PARA AHORRAR BATERÍA ---
     if hay_objetivos_en_descanso:
         print("⏸️ Partido en DESCANSO. Durmiendo 7 minutos para ahorrar recursos...")
         time.sleep(420)
+    elif hay_objetivos_en_calentamiento:
+        print("⏳ Los equipos están calentando. Durmiendo 3 minutos...")
+        time.sleep(180) # Duerme 3 minutos del tirón antes de volver a espiar
     else:
         print("🔥 Partido en juego. Esperando 60 segundos...")
         time.sleep(60)
