@@ -1,5 +1,5 @@
-requests
 gspread
+requests
 beautifulsoup4
 firebase-admin
 pytz
