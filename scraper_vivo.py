@@ -120,9 +120,10 @@ while True:
                 
                 est_viejo = estados_viejos.get(clave)
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
-                    print(f"   🏁 ¡PARTIDO TERMINADO! Actualizando Resultados y Clasificaciones...")
+                    print(f"   🏁 ¡PARTIDO TERMINADO! Actualizando Resultados, Clasificaciones y Plantillas...")
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
+                    subprocess.run(["python", "scraper_plantillas.py"]) # <-- ¡AQUÍ ESTÁ LA MEJORA!
                     estados_viejos[clave] = situacion
                 elif est_viejo is None:
                     estados_viejos[clave] = situacion
