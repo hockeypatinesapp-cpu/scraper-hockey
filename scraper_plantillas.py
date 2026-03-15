@@ -6,6 +6,11 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
+# --- INTERRUPTOR DE MODO ---
+# Leerá la orden desde GitHub. Si no recibe ninguna orden, por seguridad hará la "LIGERA".
+TIPO_ACTUALIZACION = os.environ.get('TIPO_ACTUALIZACION', 'LIGERA').upper()
+print(f"=== INICIANDO ACTUALIZACIÓN EN MODO: {TIPO_ACTUALIZACION} ===")
+
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
 gc = gspread.service_account_from_dict(credenciales)
@@ -18,9 +23,23 @@ datos_dicc = hoja_diccionario.get_all_values()
 diccionario_abrev = {}
 for fila in datos_dicc[1:]: 
     if len(fila) >= 3:
-        abrev = fila[2].strip().upper() # Ahora usamos la abreviatura como llave
+        abrev = fila[2].strip().upper()
         if abrev:
             diccionario_abrev[abrev] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
+
+print("2.5. Rescatando fotos existentes para no perderlas...")
+fotos_guardadas = {}
+try:
+    datos_antiguos = hoja_plantillas.get_all_values()
+    for fila in datos_antiguos[1:]:
+        if len(fila) >= 10:
+            id_jugador_guardado = fila[8].strip()
+            url_foto_guardada = fila[9].strip()
+            if id_jugador_guardado and url_foto_guardada:
+                fotos_guardadas[id_jugador_guardado] = url_foto_guardada
+    print(f"   -> ¡Rescatadas {len(fotos_guardadas)} fotos de la base de datos!")
+except Exception:
+    print("   -> Primera ejecución o tabla vacía. No hay fotos que rescatar.")
 
 categorias = {
     "4186": "JUNIOR",
@@ -32,7 +51,7 @@ categorias = {
 # Cabeceras ampliadas con ID Equipo, Logo y Bandera
 datos_a_guardar = [["Categoría", "Equipo Oficial", "Equipo Coloquial", "Equipo Abrev", "ID Equipo", "Logo Club", "Bandera", "Nombre Jugador", "ID Jugador", "Foto URL", "Goles", "PJ", "Media Goles", "Asistencias", "Media Asist", "Faltas Directas", "Media FD", "Penaltis", "Media Pen", "Azules", "Media Azules", "Rojas", "Media Rojas", "Última Actualización"]]
 
-print("3. Extrayendo las estadísticas y fotos de los jugadores...")
+print("3. Extrayendo las estadísticas de los jugadores...")
 for liga_id, nombre_cat in categorias.items():
     print(f" -> Procesando liga: {nombre_cat}...")
     try:
@@ -60,7 +79,7 @@ for liga_id, nombre_cat in categorias.items():
             columnas = fila.find_all('td')
             if len(columnas) < 15: continue
             
-            # --- 1. DATOS DEL EQUIPO (Corregido) ---
+            # --- 1. DATOS DEL EQUIPO ---
             texto_equipo = columnas[1].text.strip().upper()
             datos_equipo = diccionario_abrev.get(texto_equipo, {"oficial": texto_equipo, "coloquial": texto_equipo, "abrev": texto_equipo})
             
@@ -79,33 +98,33 @@ for liga_id, nombre_cat in categorias.items():
             id_jugador = enlace.get('id_player', '').strip()
             id_equipo = enlace.get('team_id', '').strip()
             
-            # --- 4. EXTRACCIÓN DINÁMICA DE LA FOTO ---
+            # --- 4. EXTRACCIÓN DE FOTO (SEGÚN EL MODO) ---
             url_foto = ""
-            if id_jugador and id_equipo:
-                url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_39.php"
-                payload_perfil = {
-                    'idm': '1',
-                    'idc': liga_id,
-                    'id_player': id_jugador,
-                    'team_id': id_equipo,
-                    'temp_name': ''
-                }
-                
-                try:
-                    res_perfil = requests.post(url_perfil, headers=headers, data=payload_perfil)
-                    soup_perfil = BeautifulSoup(res_perfil.text, 'html.parser')
-                    div_foto = soup_perfil.find('div', class_='player_profile_picture')
-                    
-                    if div_foto and 'style' in div_foto.attrs:
-                        estilo = div_foto['style']
-                        if 'url(' in estilo:
-                            parte_derecha = estilo.split('url(')[1]
-                            url_sucia = parte_derecha.split(')')[0]
-                            url_foto = url_sucia.strip("'\" ")
-                except Exception as e:
-                    pass
-                
-                time.sleep(0.5)
+            if TIPO_ACTUALIZACION == "COMPLETA":
+                # MODO LENTO: Buscamos la foto en la federación
+                if id_jugador and id_equipo:
+                    url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_39.php"
+                    payload_perfil = {
+                        'idm': '1', 'idc': liga_id, 'id_player': id_jugador,
+                        'team_id': id_equipo, 'temp_name': ''
+                    }
+                    try:
+                        res_perfil = requests.post(url_perfil, headers=headers, data=payload_perfil)
+                        soup_perfil = BeautifulSoup(res_perfil.text, 'html.parser')
+                        div_foto = soup_perfil.find('div', class_='player_profile_picture')
+                        
+                        if div_foto and 'style' in div_foto.attrs:
+                            estilo = div_foto['style']
+                            if 'url(' in estilo:
+                                parte_derecha = estilo.split('url(')[1]
+                                url_sucia = parte_derecha.split(')')[0]
+                                url_foto = url_sucia.strip("'\" ")
+                    except Exception:
+                        pass
+                    time.sleep(0.5) # Pausa para no saturar al servidor
+            else:
+                # MODO RÁPIDO (LIGERA): Tiramos de la foto que ya teníamos guardada
+                url_foto = fotos_guardadas.get(id_jugador, "")
             
             # --- 5. ESTADÍSTICAS ---
             goles = columnas[5].text.strip()
