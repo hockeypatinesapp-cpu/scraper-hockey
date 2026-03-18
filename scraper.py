@@ -3,7 +3,6 @@ import json
 import gspread
 import requests
 import pytz
-import re
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -27,18 +26,20 @@ for fila in datos_dicc[1:]:
             }
 
 print("2.5. Leyendo Categorías Dinámicas...")
-hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorias_FMP")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
 datos_cat = hoja_categorias.get_all_values()
 categorias = {}
 CATEGORIAS_OBJETIVO = []
+
 for fila in datos_cat[1:]:
-    if len(fila) >= 2 and fila[0].strip():
-        nombre_cat = fila[0].strip()
-        enlace = fila[1].strip()
-        match = re.search(r'idc_(\d+)', enlace)
-        if match:
-            categorias[match.group(1)] = nombre_cat
-        CATEGORIAS_OBJETIVO.append(nombre_cat.upper())
+    # Comprobamos que la fila tiene al menos 4 columnas (hasta llegar a ID_Liga en la Columna D)
+    if len(fila) >= 4:
+        nombre_resultados = fila[0].strip() # Columna A
+        id_liga = fila[3].strip()           # Columna D
+        
+        if id_liga.isdigit() and nombre_resultados:
+            categorias[id_liga] = nombre_resultados
+            CATEGORIAS_OBJETIVO.append(nombre_resultados.upper())
 
 datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
