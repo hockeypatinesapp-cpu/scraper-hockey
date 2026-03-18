@@ -25,8 +25,8 @@ for fila in datos_dicc[1:]:
                 "abrev": fila[2].strip()
             }
 
-print("2.5. Leyendo Categorías Dinámicas...")
-hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
+print("2.5. Leyendo Categorias Dinámicas...")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorias_FMP")
 datos_cat = hoja_categorias.get_all_values()
 categorias = {}
 CATEGORIAS_OBJETIVO = []
