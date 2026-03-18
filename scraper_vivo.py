@@ -16,9 +16,20 @@ hoja_memoria = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Memoria_Vivo")
 hoja_diccionario = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Diccionario_Equipos")
 
 print("1.5. Leyendo Categorías dinámicas...")
-hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorias_FMP")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
 datos_cat = hoja_categorias.get_all_values()
-CATEGORIAS_OBJETIVO = [fila[0].strip().upper() for fila in datos_cat[1:] if len(fila) >= 1 and fila[0].strip()]
+
+CATEGORIAS_OBJETIVO = []
+for fila in datos_cat[1:]:
+    # Guardamos el Nombre_Resultados (Columna A)
+    if len(fila) >= 1 and fila[0].strip():
+        CATEGORIAS_OBJETIVO.append(fila[0].strip().upper())
+    # Guardamos también el Nombre_Directo (Columna B) por si la FMP usa el nombre largo
+    if len(fila) >= 2 and fila[1].strip():
+        CATEGORIAS_OBJETIVO.append(fila[1].strip().upper())
+
+# Eliminamos posibles duplicados en la lista de objetivos
+CATEGORIAS_OBJETIVO = list(set(CATEGORIAS_OBJETIVO))
 
 if not firebase_admin._apps:
     credenciales_firebase = json.loads(os.environ['FIREBASE_JSON'])
@@ -61,7 +72,7 @@ while True:
     
     hay_objetivos_en_juego = False
     hay_objetivos_en_descanso = False
-    hay_objetivos_en_calentamiento = False # <-- NUEVO ESTADO DE ESPERA
+    hay_objetivos_en_calentamiento = False 
 
     for partido in partidos_html:
         try:
@@ -85,7 +96,6 @@ while True:
             es_objetivo = juega_rozas and es_categoria
 
             if es_objetivo:
-                # HEMOS QUITADO "SIN COMENZAR" DE ESTA LISTA DE MUERTE
                 estados_muertos = ["FINAL", "APLAZAD", "CANCELAD", "SUSPENDID"]
                 
                 if not any(estado in situacion for estado in estados_muertos):
@@ -127,7 +137,7 @@ while True:
                     print(f"   🏁 ¡PARTIDO TERMINADO! Actualizando Resultados, Clasificaciones y Plantillas...")
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
-                    subprocess.run(["python", "scraper_plantillas.py"]) # <-- ¡AQUÍ ESTÁ LA MEJORA!
+                    subprocess.run(["python", "scraper_plantillas.py"])
                     estados_viejos[clave] = situacion
                 elif est_viejo is None:
                     estados_viejos[clave] = situacion
@@ -154,13 +164,12 @@ while True:
         requests.post(url_dispatch, headers=headers_gh, json={"ref": "main"})
         break
 
-    # --- NUEVA LÓGICA DE ESPERA PARA AHORRAR BATERÍA ---
     if hay_objetivos_en_descanso:
         print("⏸️ Partido en DESCANSO. Durmiendo 7 minutos para ahorrar recursos...")
         time.sleep(420)
     elif hay_objetivos_en_calentamiento:
         print("⏳ Los equipos están calentando. Durmiendo 3 minutos...")
-        time.sleep(180) # Duerme 3 minutos del tirón antes de volver a espiar
+        time.sleep(180)
     else:
         print("🔥 Partido en juego. Esperando 60 segundos...")
         time.sleep(60)
