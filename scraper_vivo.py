@@ -16,7 +16,7 @@ hoja_memoria = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Memoria_Vivo")
 hoja_diccionario = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Diccionario_Equipos")
 
 print("1.5. Leyendo Categorías dinámicas...")
-hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorias_FMP")
 datos_cat = hoja_categorias.get_all_values()
 CATEGORIAS_OBJETIVO = [fila[0].strip().upper() for fila in datos_cat[1:] if len(fila) >= 1 and fila[0].strip()]
 
