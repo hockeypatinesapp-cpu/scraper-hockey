@@ -5,6 +5,9 @@ on:
     - cron: '0 3 1,15 * *' # Días 1 y 15 de cada mes a las 3:00 AM
   workflow_dispatch: # Botón manual activado
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   extraer-clubes:
     runs-on: ubuntu-latest
