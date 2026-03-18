@@ -3,6 +3,7 @@ import json
 import gspread
 import requests
 import pytz
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -25,12 +26,19 @@ for fila in datos_dicc[1:]:
                 "abrev": fila[2].strip()
             }
 
-categorias = {
-    "4186": "JUNIOR",
-    "4202": "SUB-17 FEM",
-    "4187": "1ª AUT. MASC",
-    "4198": "1ª AUT. FEM"
-}
+print("2.5. Leyendo Categorías Dinámicas...")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
+datos_cat = hoja_categorias.get_all_values()
+categorias = {}
+CATEGORIAS_OBJETIVO = []
+for fila in datos_cat[1:]:
+    if len(fila) >= 2 and fila[0].strip():
+        nombre_cat = fila[0].strip()
+        enlace = fila[1].strip()
+        match = re.search(r'idc_(\d+)', enlace)
+        if match:
+            categorias[match.group(1)] = nombre_cat
+        CATEGORIAS_OBJETIVO.append(nombre_cat.upper())
 
 datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
@@ -89,7 +97,7 @@ for liga_id, nombre_cat in categorias.items():
                                 resultado, ahora
                             ])
     except Exception as e:
-        print(f"      ❌ Error aislado procesando la liga {nombre_cat}: {e}")
+        print(f"    ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
 print("4. Actualizando base de datos central...")
 try:
@@ -107,7 +115,6 @@ hoy = datetime.now(zona_madrid)
 hoy_str = hoy.strftime("%d/%m/%Y")
 
 horas_objetivo = set()
-CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC", "1ª AUTONÓMICA MASCULINA", "1ª AUTONOMICA MASCULINA"]
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
 for fila in datos_a_guardar[1:]:
