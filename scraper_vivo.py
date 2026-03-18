@@ -15,6 +15,11 @@ gc = gspread.service_account_from_dict(credenciales)
 hoja_memoria = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Memoria_Vivo")
 hoja_diccionario = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Diccionario_Equipos")
 
+print("1.5. Leyendo Categorías dinámicas...")
+hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorías_FMP")
+datos_cat = hoja_categorias.get_all_values()
+CATEGORIAS_OBJETIVO = [fila[0].strip().upper() for fila in datos_cat[1:] if len(fila) >= 1 and fila[0].strip()]
+
 if not firebase_admin._apps:
     credenciales_firebase = json.loads(os.environ['FIREBASE_JSON'])
     cred = credentials.Certificate(credenciales_firebase)
@@ -39,7 +44,6 @@ except: pass
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
 
-CATEGORIAS_OBJETIVO = ["JUVENIL", "JUNIOR", "SUB-17 FEM", "1ª MASCULINA", "1ª AUT. MASC", "1ª AUTONÓMICA MASCULINA", "1ª AUTONOMICA MASCULINA"]
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
 tiempo_inicio = time.time()
