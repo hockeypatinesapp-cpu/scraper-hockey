@@ -5,6 +5,9 @@ on:
     - cron: '0 3 * * *' # Se ejecuta todos los días a las 3:00 de la madrugada
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   actualizar-datos:
     runs-on: ubuntu-latest
