@@ -106,17 +106,28 @@ while True:
     hay_objetivos_en_descanso = False
     hay_objetivos_en_calentamiento = False 
 
-    for partido in partidos_html:
+for partido in partidos_html:
         try:
-            local_abrev = partido.find('div', class_='scorer_team_left').text.strip()
-            visitante_abrev = partido.find('div', class_='scorer_team_right').text.strip()
+            # 1. Extracción segura de nombres abreviados
+            left_div = partido.find('div', class_='scorer_team_left')
+            right_div = partido.find('div', class_='scorer_team_right')
+            if not left_div or not right_div: continue
+            
+            local_abrev = left_div.text.strip()
+            visitante_abrev = right_div.text.strip()
             
             if not local_abrev or not visitante_abrev or "DESCANSO" in local_abrev.upper() or "DESCANSO" in visitante_abrev.upper(): 
                 continue
 
-            cat = partido.find('div', class_='scorer_liga').text.strip()
-            resultado = partido.find('div', class_='scorer_score').text.strip().replace('\n', ' ')
-            situacion = partido.find('div', class_='scorer_bot_center').text.strip().upper()
+            # 2. Extracción segura (Tolerante a fallos si faltan cajas HTML)
+            cat_div = partido.find('div', class_='scorer_liga')
+            cat = cat_div.text.strip() if cat_div else "Sin Categoría"
+            
+            score_div = partido.find('div', class_='scorer_score')
+            resultado = score_div.text.strip().replace('\n', ' ') if score_div else ""
+            
+            sit_div = partido.find('div', class_='scorer_bot_center')
+            situacion = sit_div.text.strip().upper() if sit_div else ""
                 
             datos_loc = diccionario_abrev.get(local_abrev.upper(), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
@@ -134,13 +145,23 @@ while True:
                     if "DESCANSO" in situacion: hay_objetivos_en_descanso = True
                     elif "SIN COMENZAR" in situacion: hay_objetivos_en_calentamiento = True
             
-            img_loc = partido.find('div', class_='scorer_logo_left').find('img')
-            img_vis = partido.find('div', class_='scorer_logo_right').find('img')
-            bot_left = partido.find('div', class_='scorer_bot_left').text.strip().split(" ")
+            # 3. Extracción segura de Logos y Fechas
+            div_logo_loc = partido.find('div', class_='scorer_logo_left')
+            img_loc = div_logo_loc.find('img') if div_logo_loc else None
+            
+            div_logo_vis = partido.find('div', class_='scorer_logo_right')
+            img_vis = div_logo_vis.find('img') if div_logo_vis else None
+            
+            bot_left_div = partido.find('div', class_='scorer_bot_left')
+            bot_left = bot_left_div.text.strip().split(" ") if bot_left_div else ["", ""]
+            
+            bot_right_div = partido.find('div', class_='scorer_bot_right')
+            jornada = bot_right_div.text.strip() if bot_right_div else ""
+            
             hora_registro = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
             
             nuevos_datos.append([
-                cat, partido.find('div', class_='scorer_bot_right').text.strip(), 
+                cat, jornada, 
                 bot_left[0] if len(bot_left)>0 else "", bot_left[1] if len(bot_left)>1 else "", 
                 situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
                 datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", 
@@ -152,34 +173,31 @@ while True:
                 res_viejo = marcadores_viejos.get(clave)
                 est_viejo = estados_viejos.get(clave)
 
-                # 1. ALERTA DE INICIO DE PARTIDO (Pasa de "SIN COMENZAR" o None a estar en juego)
                 if situacion != "SIN COMENZAR" and (est_viejo == "SIN COMENZAR" or est_viejo is None) and "FINAL" not in situacion:
                     print(f"   ⏱️ ¡PARTIDO COMENZADO! {nom_loc_col} vs {nom_vis_col}")
                     enviar_alerta_push(cat, f"⏱️ ¡Empieza el partido! - {cat}", f"{nom_loc_col} vs {nom_vis_col} ya están en la pista.")
                     estados_viejos[clave] = situacion
 
-                # 2. ALERTA DE GOL
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in situacion:
                     print(f"   🚨 ¡GOL DETECTADO! {nom_loc_col} {resultado} {nom_vis_col}")
                     enviar_alerta_push(cat, f"🚨 ¡GOL! - {cat}", f"{nom_loc_col} {resultado} {nom_vis_col}")
                     marcadores_viejos[clave] = resultado 
 
-                # 3. ALERTA DE FINAL DE PARTIDO
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
                     print(f"   🏁 ¡PARTIDO TERMINADO! {nom_loc_col} {resultado} {nom_vis_col}")
                     enviar_alerta_push(cat, f"🏁 Final del partido - {cat}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}")
-                    
-                    print("   -> Actualizando Resultados, Clasificaciones y Plantillas...")
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
                     subprocess.run(["python", "scraper_plantillas.py"])
                     estados_viejos[clave] = situacion
                 
-                # Actualizar el estado viejo en memoria para la siguiente vuelta
                 if est_viejo != situacion:
                     estados_viejos[clave] = situacion
 
-        except Exception as e: continue 
+        except Exception as e:
+            # Ahora si algo rarísimo falla, nos lo dirá en los logs en lugar de callarse
+            print(f"   ⚠️ Error procesando un partido: {e}")
+            continue
 
     hoja_memoria.clear()
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
