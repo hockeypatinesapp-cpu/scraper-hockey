@@ -97,7 +97,7 @@ while True:
     respuesta = requests.post(url_vivo, headers=headers)
     soup = BeautifulSoup(respuesta.text, 'html.parser')
     
-    partidos_html = soup.find_all('a', class_=lambda c: c and 'scorer_game' in c)
+    partidos_html = soup.find_all(['a', 'div'], class_=lambda c: c and 'scorer_game' in c)
     nuevos_datos = [["Categoría", "Jornada", "Fecha", "Hora", "Situación", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado en Vivo", "Hora del aviso"]]
     
     hay_objetivos_en_juego = False
