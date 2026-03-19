@@ -2,17 +2,14 @@ name: El Vigilante en Vivo
 
 on:
   schedule:
-    - cron: '0 0 31 2 *'
+    - cron: '0 0 1 1 *'
   workflow_dispatch:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   vigilar-goles:
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
