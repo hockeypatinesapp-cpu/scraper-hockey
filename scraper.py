@@ -149,7 +149,7 @@ for h in horas_objetivo:
 
 if not crons_generados:
     print("   -> Hoy no hay partidos de nuestras categorías objetivo que vigilar. Desactivando el Vigilante.")
-    crons_generados.append("    - cron: '0 0 31 2 *'\n")
+    crons_generados.append("    - cron: '0 0 1 1 *'\n")
 
 ruta_yml = ".github/workflows/vigilante.yml"
 if os.path.exists(ruta_yml):
