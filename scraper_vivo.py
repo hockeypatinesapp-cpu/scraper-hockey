@@ -94,9 +94,16 @@ while True:
     ahora_espana = datetime.utcnow() + timedelta(hours=1)
     print(f"\n--- [Escaneo a las {ahora_espana.strftime('%H:%M:%S')}] ---")
     
-    respuesta = requests.post(url_vivo, headers=headers)
-    soup = BeautifulSoup(respuesta.text, 'html.parser')
+    try:
+        # TIMEOUT AÑADIDO: Si la web no responde en 10s, no nos quedamos colgados
+        respuesta = requests.post(url_vivo, headers=headers, timeout=10)
+        soup = BeautifulSoup(respuesta.text, 'html.parser')
+    except Exception as e:
+        print(f"   ⚠️ Error de conexión con la FMP: {e}. Reintentando en un momento...")
+        time.sleep(60)
+        continue
     
+    # RADAR AMPLIADO: Buscar etiquetas <a> (en juego) y <div> (sin comenzar)
     partidos_html = soup.find_all(['a', 'div'], class_=lambda c: c and 'scorer_game' in c)
     nuevos_datos = [["Categoría", "Jornada", "Fecha", "Hora", "Situación", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado en Vivo", "Hora del aviso"]]
     
@@ -124,6 +131,11 @@ while True:
             
             sit_div = partido.find('div', class_='scorer_bot_center')
             situacion = sit_div.text.strip().upper() if sit_div else ""
+            
+            bot_left_div = partido.find('div', class_='scorer_bot_left')
+            bot_left = bot_left_div.text.strip().split(" ") if bot_left_div else ["", ""]
+            fecha_p = bot_left[0] if len(bot_left) > 0 else ""
+            hora_p = bot_left[1] if len(bot_left) > 1 else ""
                 
             datos_loc = diccionario_abrev.get(local_abrev.upper(), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
             datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
@@ -137,9 +149,25 @@ while True:
             if es_objetivo:
                 estados_muertos = ["FINAL", "APLAZAD", "CANCELAD", "SUSPENDID"]
                 if not any(estado in situacion for estado in estados_muertos):
-                    hay_objetivos_en_juego = True
-                    if "DESCANSO" in situacion: hay_objetivos_en_descanso = True
-                    elif "SIN COMENZAR" in situacion: hay_objetivos_en_calentamiento = True
+                    es_objetivo_activo = True
+                    
+                    # FILTRO DE TIEMPO: Descartar los que tarden más de 75 min
+                    if "SIN COMENZAR" in situacion:
+                        hoy_str = ahora_espana.strftime("%d/%m")
+                        if fecha_p != hoy_str:
+                            es_objetivo_activo = False
+                        elif hora_p:
+                            try:
+                                dt_partido = datetime.strptime(f"{fecha_p}/{ahora_espana.year} {hora_p}", "%d/%m/%Y %H:%M")
+                                mins_restantes = (dt_partido - ahora_espana).total_seconds() / 60
+                                if mins_restantes > 75:  
+                                    es_objetivo_activo = False
+                            except: pass
+                            
+                    if es_objetivo_activo:
+                        hay_objetivos_en_juego = True
+                        if "DESCANSO" in situacion: hay_objetivos_en_descanso = True
+                        elif "SIN COMENZAR" in situacion: hay_objetivos_en_calentamiento = True
             
             div_logo_loc = partido.find('div', class_='scorer_logo_left')
             img_loc = div_logo_loc.find('img') if div_logo_loc else None
@@ -147,17 +175,14 @@ while True:
             div_logo_vis = partido.find('div', class_='scorer_logo_right')
             img_vis = div_logo_vis.find('img') if div_logo_vis else None
             
-            bot_left_div = partido.find('div', class_='scorer_bot_left')
-            bot_left = bot_left_div.text.strip().split(" ") if bot_left_div else ["", ""]
-            
             bot_right_div = partido.find('div', class_='scorer_bot_right')
             jornada = bot_right_div.text.strip() if bot_right_div else ""
             
-            hora_registro = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+            hora_registro = ahora_espana.strftime("%d/%m/%Y %H:%M:%S")
             
             nuevos_datos.append([
                 cat, jornada, 
-                bot_left[0] if len(bot_left)>0 else "", bot_left[1] if len(bot_left)>1 else "", 
+                fecha_p, hora_p, 
                 situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
                 datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", 
                 resultado, hora_registro
@@ -181,6 +206,7 @@ while True:
                 if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
                     print(f"   🏁 ¡PARTIDO TERMINADO! {nom_loc_col} {resultado} {nom_vis_col}")
                     enviar_alerta_push(cat, f"🏁 Final del partido - {cat}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}")
+                    
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
                     subprocess.run(["python", "scraper_plantillas.py"])
@@ -197,7 +223,7 @@ while True:
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
 
     if not hay_objetivos_en_juego:
-        print("\n😴 No hay partidos de Las Rozas en nuestras categorías objetivo en juego. Me apago.")
+        print("\n😴 No hay partidos objetivo a punto de empezar ni en juego. Me apago.")
         break
         
     tiempo_transcurrido = (time.time() - tiempo_inicio) / 60
@@ -205,7 +231,9 @@ while True:
         print("\n⏳ Límite de 13 minutos alcanzado. Pidiendo el AUTO-RELEVO a GitHub...")
         url_dispatch = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/vigilante.yml/dispatches"
         headers_gh = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {os.environ['GH_TOKEN']}", "X-GitHub-Api-Version": "2022-11-28"}
-        requests.post(url_dispatch, headers=headers_gh, json={"ref": "main"})
+        try:
+            requests.post(url_dispatch, headers=headers_gh, json={"ref": "main"}, timeout=10)
+        except: pass
         break
 
     if hay_objetivos_en_descanso: time.sleep(420)
