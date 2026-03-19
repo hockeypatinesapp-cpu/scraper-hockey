@@ -29,7 +29,7 @@ print("1.6. Leyendo Suscripciones de la App...")
 try:
     hoja_suscripciones = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Suscripciones_App")
     datos_suscripciones = hoja_suscripciones.get_all_values()
-    suscripciones_tokens = {} # Diccionario: Categoría -> Lista de Tokens
+    suscripciones_tokens = {} 
     for fila in datos_suscripciones[1:]:
         if len(fila) >= 2 and fila[0].strip():
             token = fila[0].strip()
@@ -48,16 +48,14 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 def enviar_alerta_push(categoria_partido, titulo, cuerpo):
-    """Filtra los tokens por categoría y envía el mensaje masivo"""
     tokens_destino = []
     for cat_guardada, tokens in suscripciones_tokens.items():
         if cat_guardada in categoria_partido.upper() or categoria_partido.upper() in cat_guardada:
             tokens_destino.extend(tokens)
             
-    tokens_destino = list(set(tokens_destino)) # Limpiar duplicados
+    tokens_destino = list(set(tokens_destino)) 
     
     if tokens_destino:
-        # Firebase permite hasta 500 tokens por envío multicast
         mensaje = messaging.MulticastMessage(
             notification=messaging.Notification(title=titulo, body=cuerpo),
             tokens=tokens_destino
@@ -106,9 +104,8 @@ while True:
     hay_objetivos_en_descanso = False
     hay_objetivos_en_calentamiento = False 
 
-for partido in partidos_html:
+    for partido in partidos_html:
         try:
-            # 1. Extracción segura de nombres abreviados
             left_div = partido.find('div', class_='scorer_team_left')
             right_div = partido.find('div', class_='scorer_team_right')
             if not left_div or not right_div: continue
@@ -119,7 +116,6 @@ for partido in partidos_html:
             if not local_abrev or not visitante_abrev or "DESCANSO" in local_abrev.upper() or "DESCANSO" in visitante_abrev.upper(): 
                 continue
 
-            # 2. Extracción segura (Tolerante a fallos si faltan cajas HTML)
             cat_div = partido.find('div', class_='scorer_liga')
             cat = cat_div.text.strip() if cat_div else "Sin Categoría"
             
@@ -145,7 +141,6 @@ for partido in partidos_html:
                     if "DESCANSO" in situacion: hay_objetivos_en_descanso = True
                     elif "SIN COMENZAR" in situacion: hay_objetivos_en_calentamiento = True
             
-            # 3. Extracción segura de Logos y Fechas
             div_logo_loc = partido.find('div', class_='scorer_logo_left')
             img_loc = div_logo_loc.find('img') if div_logo_loc else None
             
@@ -195,9 +190,8 @@ for partido in partidos_html:
                     estados_viejos[clave] = situacion
 
         except Exception as e:
-            # Ahora si algo rarísimo falla, nos lo dirá en los logs en lugar de callarse
             print(f"   ⚠️ Error procesando un partido: {e}")
-            continue
+            continue 
 
     hoja_memoria.clear()
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
