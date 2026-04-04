@@ -40,9 +40,10 @@ for fila in datos_cat[1:]:
             categorias[id_liga] = nombre_resultados
             CATEGORIAS_OBJETIVO.append(nombre_resultados.upper())
 
-datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
+# NUEVO: Añadida la columna "Fase" en la posición 1 (Columna B del Excel)
+datos_a_guardar = [["Categoría", "Fase", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
-print("3. Extrayendo calendarios (Motor Multi-Fase)...")
+print("3. Extrayendo calendarios (Motor Multi-Fase Limpio)...")
 for liga_id, nombre_cat in categorias.items():
     try:
         url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
@@ -56,12 +57,12 @@ for liga_id, nombre_cat in categorias.items():
         respuesta = requests.post(url_secreta, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
-        # MAGIA: En lugar de buscar un ID, buscamos TODAS las tablas de la página
+        # Buscamos TODAS las tablas de la página
         tablas = soup.find_all('table', class_='tabla_standard')
         if not tablas: continue
             
         for tabla in tablas:
-            # Buscamos el cartel rojo que está justo encima de la tabla para saber la Fase
+            # Extraer nombre de la Fase del div anterior (Ej: "FINAL A JUNIOR", "LIGA REGULAR")
             div_fase = tabla.find_previous_sibling('div', class_='div_titulo_fase_idc')
             nombre_fase = div_fase.text.strip().upper() if div_fase else "LIGA REGULAR"
             
@@ -69,11 +70,10 @@ for liga_id, nombre_cat in categorias.items():
             for elemento in tabla.find_all(['thead', 'tbody']):
                 if elemento.name == 'thead' and 'head_jornada' in elemento.get('class', []):
                     jornada_actual = elemento.text.strip()
-                    # Juntamos la Fase con la Jornada (Ej: FINAL A JUNIOR - JORNADA 1)
-                    jornada_compuesta = f"{nombre_fase} - {jornada_actual}"
                     
                 elif elemento.name == 'tbody':
-                    for partido in elemento.find_all('tr', class_='team_class'):
+                    # Buscamos las filas de partidos
+                    for partido in elemento.find_all('tr', class_=lambda c: c and 'team_class' in c):
                         if partido.get('gamedate') == '00000000': continue
                         columnas = partido.find_all('td')
                         if len(columnas) > 12:
@@ -84,7 +84,7 @@ for liga_id, nombre_cat in categorias.items():
                             local_fmp = columnas[6].text.strip()
                             visitante_fmp = columnas[8].text.strip()
                             
-                            # FILTRO SALVA-CRASH: Si la FMP ha dejado los equipos en blanco
+                            # SALVAVIDAS: Si los equipos están en blanco (Ej: cruces de Final 4 por decidir)
                             if not local_fmp: local_fmp = "TBD"
                             if not visitante_fmp: visitante_fmp = "TBD"
                             
@@ -103,7 +103,7 @@ for liga_id, nombre_cat in categorias.items():
                             datos_vis = diccionario_fmp.get(visitante_fmp.upper(), {"oficial": visitante_fmp, "coloquial": visitante_fmp, "abrev": visitante_fmp})
                             
                             datos_a_guardar.append([
-                                nombre_cat, jornada_compuesta, fecha, hora, 
+                                nombre_cat, nombre_fase, jornada_actual, fecha, hora, 
                                 datos_loc["oficial"], datos_loc["coloquial"], datos_loc["abrev"], logo_loc, 
                                 datos_vis["oficial"], datos_vis["coloquial"], datos_vis["abrev"], logo_vis, 
                                 resultado, ahora
@@ -129,14 +129,17 @@ hoy_str = hoy.strftime("%d/%m/%Y")
 horas_objetivo = set()
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
+# ATENCIÓN: Índices recalculados porque hemos insertado la columna "Fase"
 for fila in datos_a_guardar[1:]:
     cat = fila[0].upper()
-    fecha = fila[2]
-    hora = fila[3]
-    loc_col = fila[5].upper()
-    vis_col = fila[9].upper()
-    abrev_loc = fila[6].upper()
-    abrev_vis = fila[10].upper()
+    # fila[1] es Fase
+    # fila[2] es Jornada
+    fecha = fila[3]
+    hora = fila[4]
+    loc_col = fila[6].upper()
+    vis_col = fila[10].upper()
+    abrev_loc = fila[7].upper()
+    abrev_vis = fila[11].upper()
 
     if fecha == hoy_str and hora:
         juega_rozas = any(p in loc_col or p in vis_col or p == abrev_loc or p == abrev_vis for p in PALABRAS_EQUIPO_OBJETIVO)
