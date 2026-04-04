@@ -32,10 +32,9 @@ categorias = {}
 CATEGORIAS_OBJETIVO = []
 
 for fila in datos_cat[1:]:
-    # Comprobamos que la fila tiene al menos 4 columnas (hasta llegar a ID_Liga en la Columna D)
     if len(fila) >= 4:
-        nombre_resultados = fila[0].strip() # Columna A
-        id_liga = fila[3].strip()           # Columna D
+        nombre_resultados = fila[0].strip()
+        id_liga = fila[3].strip()       
         
         if id_liga.isdigit() and nombre_resultados:
             categorias[id_liga] = nombre_resultados
@@ -43,7 +42,7 @@ for fila in datos_cat[1:]:
 
 datos_a_guardar = [["Categoría", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
-print("3. Extrayendo calendarios...")
+print("3. Extrayendo calendarios (Motor Multi-Fase)...")
 for liga_id, nombre_cat in categorias.items():
     try:
         url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
@@ -56,43 +55,55 @@ for liga_id, nombre_cat in categorias.items():
         
         respuesta = requests.post(url_secreta, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
-        tabla = soup.find('table', id='my_calendar_table')
-        if not tabla: continue
+        
+        # MAGIA: En lugar de buscar un ID, buscamos TODAS las tablas de la página
+        tablas = soup.find_all('table', class_='tabla_standard')
+        if not tablas: continue
             
-        jornada_actual = "Desconocida"
-        for elemento in tabla.find_all(['thead', 'tbody']):
-            if elemento.name == 'thead' and 'head_jornada' in elemento.get('class', []):
-                jornada_actual = elemento.text.strip()
-            elif elemento.name == 'tbody':
-                for partido in elemento.find_all('tr', class_='team_class'):
-                    if partido.get('gamedate') == '00000000': continue
-                    columnas = partido.find_all('td')
-                    if len(columnas) > 12:
-                        fecha = columnas[1].text.strip()
-                        if "00/00/0000" in fecha: continue
-                        hora = columnas[2].text.strip()
-                        
-                        local_fmp = columnas[6].text.strip()
-                        visitante_fmp = columnas[8].text.strip()
-                        
-                        # --- FILTRO ANTIFANTASMAS ---
-                        if "DESCANSO" in local_fmp.upper() or "DESCANSO" in visitante_fmp.upper():
-                            continue
-                        
-                        img_loc = columnas[5].find('img')
-                        logo_loc = img_loc.get('src', '') if img_loc else ""
-                        img_vis = columnas[7].find('img')
-                        logo_vis = img_vis.get('src', '') if img_vis else ""
-                        
-                        resultado = columnas[11].text.strip()
-                        ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
-                        
-                        if local_fmp and visitante_fmp:
+        for tabla in tablas:
+            # Buscamos el cartel rojo que está justo encima de la tabla para saber la Fase
+            div_fase = tabla.find_previous_sibling('div', class_='div_titulo_fase_idc')
+            nombre_fase = div_fase.text.strip().upper() if div_fase else "LIGA REGULAR"
+            
+            jornada_actual = "Desconocida"
+            for elemento in tabla.find_all(['thead', 'tbody']):
+                if elemento.name == 'thead' and 'head_jornada' in elemento.get('class', []):
+                    jornada_actual = elemento.text.strip()
+                    # Juntamos la Fase con la Jornada (Ej: FINAL A JUNIOR - JORNADA 1)
+                    jornada_compuesta = f"{nombre_fase} - {jornada_actual}"
+                    
+                elif elemento.name == 'tbody':
+                    for partido in elemento.find_all('tr', class_='team_class'):
+                        if partido.get('gamedate') == '00000000': continue
+                        columnas = partido.find_all('td')
+                        if len(columnas) > 12:
+                            fecha = columnas[1].text.strip()
+                            if "00/00/0000" in fecha: continue
+                            hora = columnas[2].text.strip()
+                            
+                            local_fmp = columnas[6].text.strip()
+                            visitante_fmp = columnas[8].text.strip()
+                            
+                            # FILTRO SALVA-CRASH: Si la FMP ha dejado los equipos en blanco
+                            if not local_fmp: local_fmp = "TBD"
+                            if not visitante_fmp: visitante_fmp = "TBD"
+                            
+                            if "DESCANSO" in local_fmp.upper() or "DESCANSO" in visitante_fmp.upper():
+                                continue
+                            
+                            img_loc = columnas[5].find('img') if len(columnas) > 5 else None
+                            logo_loc = img_loc.get('src', '') if img_loc else ""
+                            img_vis = columnas[7].find('img') if len(columnas) > 7 else None
+                            logo_vis = img_vis.get('src', '') if img_vis else ""
+                            
+                            resultado = columnas[11].text.strip()
+                            ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+                            
                             datos_loc = diccionario_fmp.get(local_fmp.upper(), {"oficial": local_fmp, "coloquial": local_fmp, "abrev": local_fmp})
                             datos_vis = diccionario_fmp.get(visitante_fmp.upper(), {"oficial": visitante_fmp, "coloquial": visitante_fmp, "abrev": visitante_fmp})
                             
                             datos_a_guardar.append([
-                                nombre_cat, jornada_actual, fecha, hora, 
+                                nombre_cat, jornada_compuesta, fecha, hora, 
                                 datos_loc["oficial"], datos_loc["coloquial"], datos_loc["abrev"], logo_loc, 
                                 datos_vis["oficial"], datos_vis["coloquial"], datos_vis["abrev"], logo_vis, 
                                 resultado, ahora
@@ -139,7 +150,6 @@ for h in horas_objetivo:
     try:
         hora_dt = datetime.strptime(f"{hoy_str} {h}", "%d/%m/%Y %H:%M")
         hora_dt = zona_madrid.localize(hora_dt)
-        # --- EL TRUCO: LE RESTAMOS 60 MINUTOS ---
         hora_inicio = hora_dt - timedelta(minutes=60)
         hora_utc = hora_inicio.astimezone(pytz.utc)
         cron_str = f"    - cron: '{hora_utc.minute} {hora_utc.hour} {hora_utc.day} {hora_utc.month} *'\n"
