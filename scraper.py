@@ -40,7 +40,6 @@ for fila in datos_cat[1:]:
             categorias[id_liga] = nombre_resultados
             CATEGORIAS_OBJETIVO.append(nombre_resultados.upper())
 
-# NUEVO: Añadida la columna "Fase" en la posición 1 (Columna B del Excel)
 datos_a_guardar = [["Categoría", "Fase", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
 print("3. Extrayendo calendarios (Motor Multi-Fase Limpio)...")
@@ -57,22 +56,45 @@ for liga_id, nombre_cat in categorias.items():
         respuesta = requests.post(url_secreta, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
-        # Buscamos TODAS las tablas de la página
         tablas = soup.find_all('table', class_='tabla_standard')
         if not tablas: continue
             
         for tabla in tablas:
-            # Extraer nombre de la Fase del div anterior (Ej: "FINAL A JUNIOR", "LIGA REGULAR")
+            # 1. Extracción de la Fase cruda
             div_fase = tabla.find_previous_sibling('div', class_='div_titulo_fase_idc')
-            nombre_fase = div_fase.text.strip().upper() if div_fase else "LIGA REGULAR"
+            fase_cruda = div_fase.text.strip().upper() if div_fase else "LIGA REGULAR"
             
+            # 2. La "Aspiradora de Texto" (Limpieza de redundancias)
+            palabras_borrar = [
+                "JÚNIOR", "JUNIOR", "1ª FEMENINA", "1ª AUT FEMENINA", 
+                "1ª AUT MASCULINA", "1ª AUT. FEM", "1ª AUT. MASC", 
+                "SUB 17", "SUB-17", "SUB17", "MASCULINA", "FEMENINA", 
+                "AUTONÓMICA", "AUTONOMICA"
+            ]
+            
+            nombre_fase = fase_cruda
+            for p in palabras_borrar:
+                nombre_fase = nombre_fase.replace(p, "")
+            
+            # Limpiamos dobles espacios y guiones huérfanos que puedan quedar al borrar palabras
+            nombre_fase = nombre_fase.replace("  ", " ").replace(" - - ", " - ").strip()
+            if nombre_fase.endswith("-"):
+                nombre_fase = nombre_fase[:-1].strip()
+                
+            # Estandarizamos los nombres raros de la FMP para las Finales
+            if nombre_fase == "FINAL A" or nombre_fase == "FINAL A 4":
+                nombre_fase = "FINAL 4"
+                
+            if not nombre_fase:
+                nombre_fase = "LIGA REGULAR"
+            
+            # 3. Procesamiento normal de la tabla
             jornada_actual = "Desconocida"
             for elemento in tabla.find_all(['thead', 'tbody']):
                 if elemento.name == 'thead' and 'head_jornada' in elemento.get('class', []):
                     jornada_actual = elemento.text.strip()
                     
                 elif elemento.name == 'tbody':
-                    # Buscamos las filas de partidos
                     for partido in elemento.find_all('tr', class_=lambda c: c and 'team_class' in c):
                         if partido.get('gamedate') == '00000000': continue
                         columnas = partido.find_all('td')
@@ -84,7 +106,7 @@ for liga_id, nombre_cat in categorias.items():
                             local_fmp = columnas[6].text.strip()
                             visitante_fmp = columnas[8].text.strip()
                             
-                            # SALVAVIDAS: Si los equipos están en blanco (Ej: cruces de Final 4 por decidir)
+                            # SALVAVIDAS: Si los equipos están en blanco
                             if not local_fmp: local_fmp = "TBD"
                             if not visitante_fmp: visitante_fmp = "TBD"
                             
@@ -129,11 +151,8 @@ hoy_str = hoy.strftime("%d/%m/%Y")
 horas_objetivo = set()
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
-# ATENCIÓN: Índices recalculados porque hemos insertado la columna "Fase"
 for fila in datos_a_guardar[1:]:
     cat = fila[0].upper()
-    # fila[1] es Fase
-    # fila[2] es Jornada
     fecha = fila[3]
     hora = fila[4]
     loc_col = fila[6].upper()
