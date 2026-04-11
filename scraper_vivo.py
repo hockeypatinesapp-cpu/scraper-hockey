@@ -5,9 +5,22 @@ import gspread
 import requests
 import firebase_admin
 import subprocess
+import unicodedata
 from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+
+def normalizar_texto(texto):
+    """Elimina acentos, diacríticos, espacios laterales y convierte a mayúsculas."""
+    if not texto:
+        return ""
+    texto = str(texto)
+    texto_sin_acentos = ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
+    return texto_sin_acentos.upper().strip()
+
+def normalizar_id(texto):
+    """Versión extrema para IDs: sin acentos, mayúsculas, sin espacios, sin guiones."""
+    return normalizar_texto(texto).replace("-", "").replace(" ", "")
 
 print("1. Despertando al Vigilante Inteligente...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -21,8 +34,8 @@ datos_cat = hoja_categorias.get_all_values()
 
 CATEGORIAS_OBJETIVO = []
 for fila in datos_cat[1:]:
-    if len(fila) >= 1 and fila[0].strip(): CATEGORIAS_OBJETIVO.append(fila[0].strip().upper())
-    if len(fila) >= 2 and fila[1].strip(): CATEGORIAS_OBJETIVO.append(fila[1].strip().upper())
+    if len(fila) >= 1 and fila[0].strip(): CATEGORIAS_OBJETIVO.append(normalizar_id(fila[0]))
+    if len(fila) >= 2 and fila[1].strip(): CATEGORIAS_OBJETIVO.append(normalizar_id(fila[1]))
 CATEGORIAS_OBJETIVO = list(set(CATEGORIAS_OBJETIVO))
 
 print("1.6. Leyendo Suscripciones...")
@@ -33,7 +46,7 @@ try:
     for fila in datos_suscripciones[1:]:
         if len(fila) >= 2 and fila[0].strip():
             token = fila[0].strip()
-            cats_usuario = [c.strip().upper() for c in fila[1].split(',')]
+            cats_usuario = [normalizar_id(c) for c in fila[1].split(',')]
             for c in cats_usuario:
                 if c not in suscripciones_tokens:
                     suscripciones_tokens[c] = []
@@ -48,10 +61,9 @@ if not firebase_admin._apps:
 
 def enviar_alerta_push(categoria_partido, titulo, cuerpo):
     tokens_destino = []
-    cat_partido_limpia = categoria_partido.upper().replace("-", "").replace(" ", "")
+    cat_partido_limpia = normalizar_id(categoria_partido)
     
-    for cat_guardada, tokens in suscripciones_tokens.items():
-        cat_guardada_limpia = cat_guardada.upper().replace("-", "").replace(" ", "")
+    for cat_guardada_limpia, tokens in suscripciones_tokens.items():
         if cat_guardada_limpia in cat_partido_limpia or cat_partido_limpia in cat_guardada_limpia:
             tokens_destino.extend(tokens)
             
@@ -73,7 +85,8 @@ datos_dicc = hoja_diccionario.get_all_values()
 diccionario_abrev = {}
 for fila in datos_dicc[1:]:
     if len(fila) >= 3 and fila[2].strip():
-        diccionario_abrev[fila[2].strip().upper()] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
+        # Blindaje: normalizamos la llave del diccionario
+        diccionario_abrev[normalizar_texto(fila[2])] = {"oficial": fila[0].strip(), "coloquial": fila[1].strip(), "abrev": fila[2].strip()}
 
 marcadores_viejos = {}
 estados_viejos = {} 
@@ -116,52 +129,62 @@ while True:
             
             local_abrev = left_div.text.strip()
             visitante_abrev = right_div.text.strip()
-            if not local_abrev or not visitante_abrev or "DESCANSO" in local_abrev.upper(): continue
+            if not local_abrev or not visitante_abrev or "DESCANSO" in normalizar_texto(local_abrev): continue
 
             cat_div = partido.find('div', class_='scorer_liga')
-            cat = cat_div.text.strip() if cat_div else "Sin Categoría"
+            cat_original = cat_div.text.strip() if cat_div else "Sin Categoría"
+            
             score_div = partido.find('div', class_='scorer_score')
             resultado = score_div.text.strip().replace('\n', ' ') if score_div else ""
+            
             sit_div = partido.find('div', class_='scorer_bot_center')
             situacion = sit_div.text.strip().upper() if sit_div else ""
+            sit_limpia = normalizar_texto(situacion)
             
             bot_left_div = partido.find('div', class_='scorer_bot_left')
             bot_left = bot_left_div.text.strip().split(" ") if bot_left_div else ["", ""]
             fecha_p = bot_left[0] if len(bot_left) > 0 else ""
             hora_p = bot_left[1] if len(bot_left) > 1 else ""
                 
-            datos_loc = diccionario_abrev.get(local_abrev.upper(), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
-            datos_vis = diccionario_abrev.get(visitante_abrev.upper(), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
+            # Búsqueda en el diccionario pasando las llaves por el túnel de lavado
+            datos_loc = diccionario_abrev.get(normalizar_texto(local_abrev), {"oficial": local_abrev, "coloquial": local_abrev, "abrev": local_abrev})
+            datos_vis = diccionario_abrev.get(normalizar_texto(visitante_abrev), {"oficial": visitante_abrev, "coloquial": visitante_abrev, "abrev": visitante_abrev})
             nom_loc_col, nom_vis_col = datos_loc["coloquial"], datos_vis["coloquial"]
             abrev_loc, abrev_vis = datos_loc["abrev"], datos_vis["abrev"]
             
-            # FILTRO INTELIGENTE FINAL 4
-            juega_rozas = any(p in nom_loc_col.upper() or p in nom_vis_col.upper() or p == abrev_loc.upper() or p == abrev_vis.upper() for p in PALABRAS_EQUIPO_OBJETIVO)
-            cat_limpia = cat.upper().replace("-", "").replace(" ", "")
+            # FILTRO INTELIGENTE FINAL 4 BLINDADO CONTRA TILDES
+            juega_rozas = any(
+                p in normalizar_texto(nom_loc_col) or 
+                p in normalizar_texto(nom_vis_col) or 
+                p == normalizar_texto(abrev_loc) or 
+                p == normalizar_texto(abrev_vis) 
+                for p in PALABRAS_EQUIPO_OBJETIVO
+            )
+            
+            cat_limpia = normalizar_id(cat_original)
             
             categoria_coincidente = None
             for c in CATEGORIAS_OBJETIVO:
-                if c.replace("-", "").replace(" ", "") in cat_limpia:
+                if c in cat_limpia:
                     categoria_coincidente = c
                     break
                     
             es_categoria = categoria_coincidente is not None
             es_final4 = es_categoria and ("FINAL" in cat_limpia or "F4" in cat_limpia)
 
-            # Es objetivo si juega nuestro equipo normal, O si es una Final 4 de nuestras ligas (seguimos a todos)
             es_objetivo = (es_categoria and juega_rozas) or es_final4
 
+            cat_escribir = cat_original
             if es_objetivo and es_final4:
-                # Normalizamos el nombre para que lleguen las notificaciones y lo agrupe la App
-                if "SUB17" in cat_limpia: cat = "Sub-17"
-                elif "JUNIOR" in cat_limpia: cat = "Junior"
-                else: cat = categoria_coincidente.title()
+                if "SUB17" in cat_limpia: cat_escribir = "Sub-17"
+                elif "JUNIOR" in cat_limpia: cat_escribir = "Junior"
+                else: cat_escribir = categoria_coincidente.title() if categoria_coincidente else cat_original
 
             if es_objetivo:
                 estados_muertos = ["FINAL", "APLAZAD", "CANCELAD", "SUSPENDID"]
-                if not any(estado in situacion for estado in estados_muertos):
+                if not any(estado in sit_limpia for estado in estados_muertos):
                     es_objetivo_activo = True
-                    if "SIN COMENZAR" in situacion:
+                    if "SIN COMENZAR" in sit_limpia:
                         hoy_str = ahora_espana.strftime("%d/%m")
                         if fecha_p != hoy_str: es_objetivo_activo = False
                         elif hora_p:
@@ -173,9 +196,9 @@ while True:
                             
                     if es_objetivo_activo:
                         hay_objetivos_en_juego = True
-                        if "DESCANSO" in situacion: hay_objetivos_en_descanso = True
-                        elif "SIN COMENZAR" in situacion: hay_objetivos_en_calentamiento = True
-            
+                        if "DESCANSO" in sit_limpia: hay_objetivos_en_descanso = True
+                        elif "SIN COMENZAR" in sit_limpia: hay_objetivos_en_calentamiento = True
+        
             div_logo_loc = partido.find('div', class_='scorer_logo_left')
             img_loc = div_logo_loc.find('img') if div_logo_loc else None
             div_logo_vis = partido.find('div', class_='scorer_logo_right')
@@ -185,7 +208,7 @@ while True:
             hora_registro = ahora_espana.strftime("%d/%m/%Y %H:%M:%S")
             
             nuevos_datos.append([
-                cat, jornada, fecha_p, hora_p, situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
+                cat_escribir, jornada, fecha_p, hora_p, situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
                 datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", resultado, hora_registro
             ])
             
@@ -194,25 +217,28 @@ while True:
                 res_viejo = marcadores_viejos.get(clave)
                 est_viejo = estados_viejos.get(clave)
 
-                if situacion != "SIN COMENZAR" and (est_viejo == "SIN COMENZAR" or est_viejo is None) and "FINAL" not in situacion:
-                    enviar_alerta_push(cat, f"⏱️ ¡Empieza el partido! - {cat}", f"{nom_loc_col} vs {nom_vis_col} ya están en la pista.")
+                if sit_limpia != "SIN COMENZAR" and (est_viejo is None or "SIN COMENZAR" in normalizar_texto(est_viejo)) and "FINAL" not in sit_limpia:
+                    enviar_alerta_push(cat_escribir, f"⏱️ ¡Empieza el partido! - {cat_escribir}", f"{nom_loc_col} vs {nom_vis_col} ya están en la pista.")
                     estados_viejos[clave] = situacion
 
-                if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in situacion:
-                    enviar_alerta_push(cat, f"🚨 ¡GOL! - {cat}", f"{nom_loc_col} {resultado} {nom_vis_col}")
+                if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in sit_limpia:
+                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", f"{nom_loc_col} {resultado} {nom_vis_col}")
                     marcadores_viejos[clave] = resultado 
 
-                if "FINAL" in situacion and est_viejo is not None and "FINAL" not in est_viejo:
-                    enviar_alerta_push(cat, f"🏁 Final del partido - {cat}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}")
+                if "FINAL" in sit_limpia and est_viejo is not None and "FINAL" not in normalizar_texto(est_viejo):
+                    enviar_alerta_push(cat_escribir, f"🏁 Final del partido - {cat_escribir}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}")
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
                     subprocess.run(["python", "scraper_plantillas.py"])
                     estados_viejos[clave] = situacion
-                
+            
                 if est_viejo != situacion:
                     estados_viejos[clave] = situacion
 
-        except: continue 
+        except Exception as e:
+            # Puedes descomentar el print si necesitas debuggear en Github Actions
+            # print(f"Error procesando partido: {e}")
+            continue 
 
     hoja_memoria.clear()
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
