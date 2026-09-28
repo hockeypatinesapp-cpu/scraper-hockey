@@ -100,3 +100,25 @@ def leer_categorias(libro, actualizar_hoja=True):
             print(f"   ⚠️ No se pudo escribir en Categorias_FMP: {e}")
 
     return categorias, temporada
+
+
+PALABRAS_BORRAR_FASE = [
+    "1ª AUTONÓMICA MASCULINA", "1ª AUTONÓMICA FEMENINA", "1ª AUTONOMICA MASCULINA", "1ª AUTONOMICA FEMENINA",
+    "CTO AUT", "JÚNIOR", "JUNIOR", "1ª FEMENINA", "1ª AUT FEMENINA",
+    "1ª AUT MASCULINA", "1ª AUT. FEM", "1ª AUT. MASC",
+    "SUB 17", "SUB-17", "SUB17", "MASCULINA", "FEMENINA", "MASCULINO", "FEMENINO",
+    "AUTONÓMICA", "AUTONOMICA",
+]
+
+
+def limpiar_fase(fase_cruda):
+    """'CTO AUT JÚNIOR - 1ª FASE - GRUPO A' -> '1ª FASE - GRUPO A'. Sin título -> 'LIGA REGULAR'."""
+    nombre_fase = (fase_cruda or "").strip().upper()
+    if nombre_fase.startswith("CLASIFICACI"):  # Título genérico de las clasificaciones sin grupos
+        return "LIGA REGULAR"
+    for p in PALABRAS_BORRAR_FASE:
+        nombre_fase = nombre_fase.replace(p, "")
+    nombre_fase = re.sub(r"\s+", " ", nombre_fase).replace(" - - ", " - ").strip(" -")
+    if nombre_fase in ("FINAL A", "FINAL A 4"):
+        nombre_fase = "FINAL 4"
+    return nombre_fase or "LIGA REGULAR"

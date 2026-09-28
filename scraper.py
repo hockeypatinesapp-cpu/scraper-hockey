@@ -5,7 +5,7 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from categorias_fmp import leer_categorias
+from categorias_fmp import leer_categorias, limpiar_fase
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -55,29 +55,8 @@ for liga_id, nombre_cat in categorias.items():
             fase_cruda = div_fase.text.strip().upper() if div_fase else "LIGA REGULAR"
             
             # 2. La "Aspiradora de Texto" (Limpieza de redundancias)
-            palabras_borrar = [
-                "1ª AUTONÓMICA MASCULINA", "1ª AUTONÓMICA FEMENINA", "1ª AUTONOMICA MASCULINA", "1ª AUTONOMICA FEMENINA",
-                "CTO AUT", "JÚNIOR", "JUNIOR", "1ª FEMENINA", "1ª AUT FEMENINA", 
-                "1ª AUT MASCULINA", "1ª AUT. FEM", "1ª AUT. MASC", 
-                "SUB 17", "SUB-17", "SUB17", "MASCULINA", "FEMENINA", "MASCULINO", "FEMENINO", 
-                "AUTONÓMICA", "AUTONOMICA"
-            ]
-            
-            nombre_fase = fase_cruda
-            for p in palabras_borrar:
-                nombre_fase = nombre_fase.replace(p, "")
-            
-            # Limpiamos dobles espacios y guiones huérfanos que puedan quedar al borrar palabras
-            nombre_fase = nombre_fase.replace("  ", " ").replace(" - - ", " - ").strip()
-            nombre_fase = nombre_fase.strip(" -")
-                
-            # Estandarizamos los nombres raros de la FMP para las Finales
-            if nombre_fase == "FINAL A" or nombre_fase == "FINAL A 4":
-                nombre_fase = "FINAL 4"
-                
-            if not nombre_fase:
-                nombre_fase = "LIGA REGULAR"
-            
+            nombre_fase = limpiar_fase(fase_cruda)
+
             # 3. Procesamiento normal de la tabla
             jornada_actual = "Desconocida"
             for elemento in tabla.find_all(['thead', 'tbody']):

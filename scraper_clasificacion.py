@@ -5,7 +5,7 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from categorias_fmp import leer_categorias
+from categorias_fmp import leer_categorias, limpiar_fase
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -32,7 +32,7 @@ print("Leyendo categorías desde Categorias_FMP...")
 categorias, TEMPORADA = leer_categorias(gc.open_by_key(os.environ['SHEET_ID']), actualizar_hoja=False)
 
 # Cabeceras: 1ª Columna Categoría, Última Timestamp
-datos_a_guardar = [["Categoría", "Pos", "Logo", "Oficial", "Coloquial", "Abrev", "PT", "PJ", "PG", "PE", "PP", "GF", "GC", "Gav", "PEN", "Última Actualización"]]
+datos_a_guardar = [["Categoría", "Pos", "Logo", "Oficial", "Coloquial", "Abrev", "PT", "PJ", "PG", "PE", "PP", "GF", "GC", "Gav", "PEN", "Última Actualización", "Grupo"]]
 
 print("3. Extrayendo las tablas de clasificación...")
 for liga_id, nombre_cat in categorias.items():
@@ -49,13 +49,17 @@ for liga_id, nombre_cat in categorias.items():
         respuesta = requests.post(url_clasif, headers=headers, data=payload)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
-        tabla = soup.find('table', class_='tabla_clasif')
-        if not tabla: continue
-            
-        filas = tabla.find('tbody').find_all('tr')
+        # La FMP cambió 'tabla_clasif' por 'tabla_standard' y pone una tabla por grupo
+        tablas = soup.find_all('table', class_=lambda c: c and ('tabla_clasif' in c or 'tabla_standard' in c))
+        if not tablas: continue
         ahora = datetime.now(pytz.timezone("Europe/Madrid")).replace(tzinfo=None).strftime("%d/%m/%Y %H:%M:%S")
-        
-        for fila in filas:
+
+        for tabla in tablas:
+          div_fase = tabla.find_previous_sibling('div', class_='div_titulo_fase_idc')
+          grupo = limpiar_fase(div_fase.get_text(" ", strip=True) if div_fase else "")
+          cuerpo = tabla.find('tbody')
+          if not cuerpo: continue
+          for fila in cuerpo.find_all('tr'):
             columnas = fila.find_all('td')
             if len(columnas) >= 12:
                 posicion = columnas[0].text.strip()
@@ -85,7 +89,7 @@ for liga_id, nombre_cat in categorias.items():
                 datos_a_guardar.append([
                     nombre_cat, posicion, logo, 
                     datos_equipo["oficial"], datos_equipo["coloquial"], datos_equipo["abrev"], 
-                    pt, pj, pg, pe, pp, gf, gc, gav, pen, ahora
+                    pt, pj, pg, pe, pp, gf, gc, gav, pen, ahora, grupo
                 ])
                 
     except Exception as e:
