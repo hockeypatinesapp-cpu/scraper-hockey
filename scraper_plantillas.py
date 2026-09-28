@@ -5,6 +5,7 @@ import gspread
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from categorias_fmp import leer_categorias
 
 # --- INTERRUPTOR DE MODO ---
 # Leerá la orden desde GitHub. Si no recibe ninguna orden, por seguridad hará la "LIGERA".
@@ -41,12 +42,8 @@ try:
 except Exception:
     print("   -> Primera ejecución o tabla vacía. No hay fotos que rescatar.")
 
-categorias = {
-    "4186": "JUNIOR",
-    "4202": "SUB-17 FEM",
-    "4187": "1ª AUT. MASC",
-    "4198": "1ª AUT. FEM"
-}
+print("Leyendo categorías desde Categorias_FMP...")
+categorias, TEMPORADA = leer_categorias(gc.open_by_key(os.environ['SHEET_ID']), actualizar_hoja=False)
 
 # Cabeceras ampliadas con ID Equipo, Logo y Bandera
 datos_a_guardar = [["Categoría", "Equipo Oficial", "Equipo Coloquial", "Equipo Abrev", "ID Equipo", "Logo Club", "Bandera", "Nombre Jugador", "ID Jugador", "Foto URL", "Goles", "PJ", "Media Goles", "Asistencias", "Media Asist", "Faltas Directas", "Media FD", "Penaltis", "Media Pen", "Azules", "Media Azules", "Rojas", "Media Rojas", "Última Actualización"]]
@@ -103,7 +100,7 @@ for liga_id, nombre_cat in categorias.items():
             if TIPO_ACTUALIZACION == "COMPLETA":
                 # MODO LENTO: Buscamos la foto en la federación
                 if id_jugador and id_equipo:
-                    url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_39.php"
+                    url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_{TEMPORADA}.php"
                     payload_perfil = {
                         'idm': '1', 'idc': liga_id, 'id_player': id_jugador,
                         'team_id': id_equipo, 'temp_name': ''

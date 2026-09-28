@@ -7,15 +7,13 @@ on:
 
 jobs:
   actualizar-datos:
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GH_TOKEN }} # Usamos tu llave maestra aquí para poder escribir en tu repo
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.10'
           
@@ -40,5 +38,7 @@ jobs:
           git config --global user.name "Robot Organizador"
           git config --global user.email "bot@hockeypatines.com"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
-          git add .github/workflows/vigilante.yml
-          git diff --quiet && git diff --staged --quiet || (git commit -m "⏰ Despertador dinámico actualizado para hoy" && git push)
+          # Señal de vida mensual: evita que GitHub apague los robots tras 60 días sin cambios
+          date -u +%Y-%m > .github/ultima_actividad.txt
+          git add .github/workflows/vigilante.yml .github/ultima_actividad.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "⏰ Despertador / señal de vida actualizados" && git push)

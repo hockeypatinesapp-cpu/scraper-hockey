@@ -4,6 +4,7 @@ import gspread
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from categorias_fmp import leer_categorias
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -26,12 +27,8 @@ for fila in datos_dicc[1:]:
                 "abrev": fila[2].strip()
             }
 
-categorias = {
-    "4186": "JUNIOR",
-    "4202": "SUB-17 FEM",
-    "4187": "1ª AUT. MASC",
-    "4198": "1ª AUT. FEM"
-}
+print("Leyendo categorías desde Categorias_FMP...")
+categorias, TEMPORADA = leer_categorias(gc.open_by_key(os.environ['SHEET_ID']), actualizar_hoja=False)
 
 # Cabeceras: 1ª Columna Categoría, Última Timestamp
 datos_a_guardar = [["Categoría", "Pos", "Logo", "Oficial", "Coloquial", "Abrev", "PT", "PJ", "PG", "PE", "PP", "GF", "GC", "Gav", "PEN", "Última Actualización"]]

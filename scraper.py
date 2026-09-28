@@ -5,6 +5,7 @@ import requests
 import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from categorias_fmp import leer_categorias
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -25,20 +26,9 @@ for fila in datos_dicc[1:]:
                 "abrev": fila[2].strip()
             }
 
-print("2.5. Leyendo Categorias Dinámicas...")
-hoja_categorias = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Categorias_FMP")
-datos_cat = hoja_categorias.get_all_values()
-categorias = {}
-CATEGORIAS_OBJETIVO = []
-
-for fila in datos_cat[1:]:
-    if len(fila) >= 4:
-        nombre_resultados = fila[0].strip()
-        id_liga = fila[3].strip()       
-        
-        if id_liga.isdigit() and nombre_resultados:
-            categorias[id_liga] = nombre_resultados
-            CATEGORIAS_OBJETIVO.append(nombre_resultados.upper())
+print("2.5. Leyendo Categorias Dinámicas (y actualizando IDs de la temporada)...")
+categorias, TEMPORADA = leer_categorias(gc.open_by_key(os.environ['SHEET_ID']))
+CATEGORIAS_OBJETIVO = [n.upper() for n in categorias.values()]
 
 datos_a_guardar = [["Categoría", "Fase", "Jornada", "Fecha", "Hora", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado", "Última Actualización"]]
 
@@ -66,9 +56,10 @@ for liga_id, nombre_cat in categorias.items():
             
             # 2. La "Aspiradora de Texto" (Limpieza de redundancias)
             palabras_borrar = [
-                "JÚNIOR", "JUNIOR", "1ª FEMENINA", "1ª AUT FEMENINA", 
+                "1ª AUTONÓMICA MASCULINA", "1ª AUTONÓMICA FEMENINA", "1ª AUTONOMICA MASCULINA", "1ª AUTONOMICA FEMENINA",
+                "CTO AUT", "JÚNIOR", "JUNIOR", "1ª FEMENINA", "1ª AUT FEMENINA", 
                 "1ª AUT MASCULINA", "1ª AUT. FEM", "1ª AUT. MASC", 
-                "SUB 17", "SUB-17", "SUB17", "MASCULINA", "FEMENINA", 
+                "SUB 17", "SUB-17", "SUB17", "MASCULINA", "FEMENINA", "MASCULINO", "FEMENINO", 
                 "AUTONÓMICA", "AUTONOMICA"
             ]
             
@@ -78,8 +69,7 @@ for liga_id, nombre_cat in categorias.items():
             
             # Limpiamos dobles espacios y guiones huérfanos que puedan quedar al borrar palabras
             nombre_fase = nombre_fase.replace("  ", " ").replace(" - - ", " - ").strip()
-            if nombre_fase.endswith("-"):
-                nombre_fase = nombre_fase[:-1].strip()
+            nombre_fase = nombre_fase.strip(" -")
                 
             # Estandarizamos los nombres raros de la FMP para las Finales
             if nombre_fase == "FINAL A" or nombre_fase == "FINAL A 4":
