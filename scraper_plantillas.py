@@ -3,6 +3,7 @@ import json
 import time
 import gspread
 import requests
+import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias
@@ -70,7 +71,7 @@ for liga_id, nombre_cat in categorias.items():
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
         filas_jugadores = soup.find_all('tr', class_='fila_stats_player')
-        ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+        ahora = datetime.now(pytz.timezone("Europe/Madrid")).replace(tzinfo=None).strftime("%d/%m/%Y %H:%M:%S")
         
         for fila in filas_jugadores:
             columnas = fila.find_all('td')

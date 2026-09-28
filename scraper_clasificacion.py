@@ -2,6 +2,7 @@ import os
 import json
 import gspread
 import requests
+import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias
@@ -52,7 +53,7 @@ for liga_id, nombre_cat in categorias.items():
         if not tabla: continue
             
         filas = tabla.find('tbody').find_all('tr')
-        ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+        ahora = datetime.now(pytz.timezone("Europe/Madrid")).replace(tzinfo=None).strftime("%d/%m/%Y %H:%M:%S")
         
         for fila in filas:
             columnas = fila.find_all('td')

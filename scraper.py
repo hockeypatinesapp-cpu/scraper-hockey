@@ -109,7 +109,7 @@ for liga_id, nombre_cat in categorias.items():
                             logo_vis = img_vis.get('src', '') if img_vis else ""
                             
                             resultado = columnas[11].text.strip()
-                            ahora = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y %H:%M:%S")
+                            ahora = datetime.now(pytz.timezone("Europe/Madrid")).replace(tzinfo=None).strftime("%d/%m/%Y %H:%M:%S")
                             
                             datos_loc = diccionario_fmp.get(local_fmp.upper(), {"oficial": local_fmp, "coloquial": local_fmp, "abrev": local_fmp})
                             datos_vis = diccionario_fmp.get(visitante_fmp.upper(), {"oficial": visitante_fmp, "coloquial": visitante_fmp, "abrev": visitante_fmp})

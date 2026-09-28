@@ -3,6 +3,7 @@ import json
 import time
 import gspread
 import requests
+import pytz
 import firebase_admin
 import subprocess
 import unicodedata
@@ -38,6 +39,14 @@ for fila in datos_cat[1:]:
     if len(fila) >= 2 and fila[1].strip(): CATEGORIAS_OBJETIVO.append(normalizar_id(fila[1]))
 CATEGORIAS_OBJETIVO = list(set(CATEGORIAS_OBJETIVO))
 
+# Para los avisos: cada categoría que sigues con todos sus nombres (A, B y C),
+# así una suscripción guardada como "S17", "SUB-17 FEM" o el nombre de la FMP funciona igual
+ALIAS_CATEGORIAS = []
+for fila in datos_cat[1:]:
+    fila = fila + [''] * (3 - len(fila))
+    if fila[0].strip():
+        ALIAS_CATEGORIAS.append({normalizar_id(x) for x in fila[:3] if x.strip()})
+
 print("1.6. Leyendo Suscripciones...")
 try:
     hoja_suscripciones = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Suscripciones_App")
@@ -59,12 +68,22 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(credenciales_firebase)
     firebase_admin.initialize_app(cred)
 
-def enviar_alerta_push(categoria_partido, titulo, cuerpo):
+def enviar_alerta_push(categoria_partido, titulo, cuerpo, categoria_fmp=""):
     tokens_destino = []
     cat_partido_limpia = normalizar_id(categoria_partido)
-    
+    cat_fmp_limpia = normalizar_id(categoria_fmp)
+
+    # Todos los nombres que tiene esta categoría en Categorias_FMP
+    alias = set()
+    for nombres in ALIAS_CATEGORIAS:
+        if any(n and (n in cat_fmp_limpia or n in cat_partido_limpia) for n in nombres):
+            alias |= nombres
+
     for cat_guardada_limpia, tokens in suscripciones_tokens.items():
-        if cat_guardada_limpia in cat_partido_limpia or cat_partido_limpia in cat_guardada_limpia:
+        if not cat_guardada_limpia:
+            continue
+        if (cat_guardada_limpia in cat_partido_limpia or cat_partido_limpia in cat_guardada_limpia
+                or cat_guardada_limpia in alias):
             tokens_destino.extend(tokens)
             
     tokens_destino = list(set(tokens_destino)) 
@@ -75,8 +94,8 @@ def enviar_alerta_push(categoria_partido, titulo, cuerpo):
             tokens=tokens_destino
         )
         try:
-            response = messaging.send_multicast(mensaje)
-            print(f"   📣 Push enviada con éxito a {response.success_count} dispositivos.")
+            response = messaging.send_each_for_multicast(mensaje)
+            print(f"   📣 Push enviada con éxito a {response.success_count} dispositivos ({response.failure_count} fallidos).")
         except Exception as e:
             print(f"   ❌ Error enviando Push: {e}")
 
@@ -104,7 +123,7 @@ tiempo_inicio = time.time()
 minutos_maximos = 13.0 
 
 while True:
-    ahora_espana = datetime.utcnow() + timedelta(hours=1)
+    ahora_espana = datetime.now(pytz.timezone("Europe/Madrid")).replace(tzinfo=None)
     print(f"\n--- [Escaneo a las {ahora_espana.strftime('%H:%M:%S')}] ---")
     
     try:
@@ -218,15 +237,18 @@ while True:
                 est_viejo = estados_viejos.get(clave)
 
                 if sit_limpia != "SIN COMENZAR" and (est_viejo is None or "SIN COMENZAR" in normalizar_texto(est_viejo)) and "FINAL" not in sit_limpia:
-                    enviar_alerta_push(cat_escribir, f"⏱️ ¡Empieza el partido! - {cat_escribir}", f"{nom_loc_col} vs {nom_vis_col} ya están en la pista.")
+                    enviar_alerta_push(cat_escribir, f"⏱️ ¡Empieza el partido! - {cat_escribir}", f"{nom_loc_col} vs {nom_vis_col} ya están en la pista.", cat_original)
                     estados_viejos[clave] = situacion
 
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in sit_limpia:
-                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", f"{nom_loc_col} {resultado} {nom_vis_col}")
+                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", f"{nom_loc_col} {resultado} {nom_vis_col}", cat_original)
                     marcadores_viejos[clave] = resultado 
+                elif res_viejo is None and resultado != "" and "SIN COMENZAR" not in sit_limpia:
+                    # Primer marcador visto en esta ejecución: lo apuntamos para detectar el siguiente gol
+                    marcadores_viejos[clave] = resultado
 
                 if "FINAL" in sit_limpia and est_viejo is not None and "FINAL" not in normalizar_texto(est_viejo):
-                    enviar_alerta_push(cat_escribir, f"🏁 Final del partido - {cat_escribir}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}")
+                    enviar_alerta_push(cat_escribir, f"🏁 Final del partido - {cat_escribir}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}", cat_original)
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
                     subprocess.run(["python", "scraper_plantillas.py"])
