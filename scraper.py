@@ -110,46 +110,55 @@ except TypeError:
     hoja.update('A1', datos_a_guardar, value_input_option='USER_ENTERED')
 
 # =======================================================
-# FASE 5: LA MAGIA DEL DESPERTADOR DINÁMICO (-60 MINUTOS)
+# FASE 5: EL DESPERTADOR DINÁMICO (7 DÍAS VISTA)
 # =======================================================
-print("5. Calculando horarios del Vigilante para HOY...")
+# Se programan los partidos de los próximos 7 días (no solo los de hoy): así,
+# aunque GitHub retrase o se salte la ejecución de un día, el Vigilante ya
+# quedó programado en ejecuciones anteriores.
+# Se despierta 67 min antes (minuto "raro" para esquivar el atasco de GitHub a
+# las horas en punto; el Vigilante acepta hasta 90 min de antelación).
+DIAS_VISTA = 7
+MINUTOS_ANTES = 67
+print(f"5. Calculando horarios del Vigilante para los próximos {DIAS_VISTA} días...")
 zona_madrid = pytz.timezone('Europe/Madrid')
-hoy = datetime.now(zona_madrid)
-hoy_str = hoy.strftime("%d/%m/%Y")
+ahora_madrid = datetime.now(zona_madrid)
+limite = ahora_madrid + timedelta(days=DIAS_VISTA)
 
-horas_objetivo = set()
+inicios_partido = set()
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 
 for fila in datos_a_guardar[1:]:
     cat = fila[0].upper()
-    fecha = fila[3]
-    hora = fila[4]
+    fecha = fila[3].strip()
+    hora = fila[4].strip()
     loc_col = fila[6].upper()
     vis_col = fila[10].upper()
     abrev_loc = fila[7].upper()
     abrev_vis = fila[11].upper()
+    if not fecha or not hora:
+        continue
 
-    if fecha == hoy_str and hora:
-        juega_rozas = any(p in loc_col or p in vis_col or p == abrev_loc or p == abrev_vis for p in PALABRAS_EQUIPO_OBJETIVO)
-        es_categoria = any(c in cat for c in CATEGORIAS_OBJETIVO)
-        
-        if juega_rozas and es_categoria:
-            horas_objetivo.add(hora)
+    juega_rozas = any(p in loc_col or p in vis_col or p == abrev_loc or p == abrev_vis for p in PALABRAS_EQUIPO_OBJETIVO)
+    es_categoria = any(c in cat for c in CATEGORIAS_OBJETIVO)
+    if not (juega_rozas and es_categoria):
+        continue
+    try:
+        # strptime acepta tanto "04/10/2026" como "4/10/2026"
+        inicio = zona_madrid.localize(datetime.strptime(f"{fecha} {hora}", "%d/%m/%Y %H:%M"))
+    except ValueError:
+        continue
+    despertar = inicio - timedelta(minutes=MINUTOS_ANTES)
+    if ahora_madrid < despertar and inicio <= limite:
+        inicios_partido.add(inicio)
 
 crons_generados = []
-for h in horas_objetivo:
-    try:
-        hora_dt = datetime.strptime(f"{hoy_str} {h}", "%d/%m/%Y %H:%M")
-        hora_dt = zona_madrid.localize(hora_dt)
-        hora_inicio = hora_dt - timedelta(minutes=60)
-        hora_utc = hora_inicio.astimezone(pytz.utc)
-        cron_str = f"    - cron: '{hora_utc.minute} {hora_utc.hour} {hora_utc.day} {hora_utc.month} *'\n"
-        crons_generados.append(cron_str)
-    except Exception:
-        pass
+for inicio in sorted(inicios_partido):
+    hora_utc = (inicio - timedelta(minutes=MINUTOS_ANTES)).astimezone(pytz.utc)
+    crons_generados.append(f"    - cron: '{hora_utc.minute} {hora_utc.hour} {hora_utc.day} {hora_utc.month} *'\n")
+    print(f"   -> Partido el {inicio.strftime('%d/%m %H:%M')} (Madrid): el Vigilante despertará a las {(inicio - timedelta(minutes=MINUTOS_ANTES)).strftime('%H:%M')}")
 
 if not crons_generados:
-    print("   -> Hoy no hay partidos de nuestras categorías objetivo que vigilar. Desactivando el Vigilante.")
+    print(f"   -> No hay partidos de nuestras categorías objetivo en los próximos {DIAS_VISTA} días. Vigilante en reposo.")
     crons_generados.append("    - cron: '0 0 1 1 *'\n")
 
 ruta_yml = ".github/workflows/vigilante.yml"
@@ -174,6 +183,6 @@ if os.path.exists(ruta_yml):
 
     with open(ruta_yml, 'w', encoding='utf-8') as f:
         f.writelines(nuevas_lineas)
-    print("¡Alarmas reconfiguradas con éxito (con 1h de antelación)!")
+    print("¡Alarmas del Vigilante reconfiguradas con éxito!")
 else:
     print(f"⚠️ No se encontró el archivo {ruta_yml} para actualizar las alarmas.")

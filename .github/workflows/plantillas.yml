@@ -2,10 +2,10 @@ name: Bot Plantillas FMP
 
 on:
   schedule:
-    # A las 03:00 AM todos los días (Hora UTC) - MODO LIGERO
-    - cron: '0 3 * * *'
-    # A las 04:00 AM solo el día 1 de cada mes (Hora UTC) - MODO COMPLETO
-    - cron: '0 4 1 * *'
+    # 01:23 UTC todos los días - MODO LIGERO
+    - cron: '23 1 * * *'
+    # 02:43 UTC solo el día 1 de cada mes - MODO COMPLETO
+    - cron: '43 2 1 * *'
   
   workflow_dispatch:
     inputs:
@@ -41,7 +41,7 @@ jobs:
           # Lógica inteligente para decidir el modo
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             export TIPO_ACTUALIZACION="${{ github.event.inputs.tipo }}"
-          elif [ "${{ github.event.schedule }}" == "0 4 1 * *" ]; then
+          elif [ "${{ github.event.schedule }}" == "43 2 1 * *" ]; then
             export TIPO_ACTUALIZACION="COMPLETA"
           else
             export TIPO_ACTUALIZACION="LIGERA"

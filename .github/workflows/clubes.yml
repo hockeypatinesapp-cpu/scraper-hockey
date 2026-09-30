@@ -2,7 +2,7 @@ name: El Documentalista (Clubes)
 
 on:
   schedule:
-    - cron: '0 3 1,15 * *' # Días 1 y 15 de cada mes a las 3:00 AM
+    - cron: '37 1 1,15 * *' # Días 1 y 15 de cada mes, 01:37 UTC
   workflow_dispatch: # Botón manual activado
 
 

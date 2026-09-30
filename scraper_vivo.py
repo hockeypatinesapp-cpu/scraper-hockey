@@ -210,7 +210,7 @@ while True:
                             try:
                                 dt_partido = datetime.strptime(f"{fecha_p}/{ahora_espana.year} {hora_p}", "%d/%m/%Y %H:%M")
                                 mins_restantes = (dt_partido - ahora_espana).total_seconds() / 60
-                                if mins_restantes > 75: es_objetivo_activo = False
+                                if mins_restantes > 90: es_objetivo_activo = False
                             except: pass
                             
                     if es_objetivo_activo:
