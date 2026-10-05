@@ -154,6 +154,11 @@ for liga_id, nombre_cat in categorias.items():
 
 print("4. Guardando en Google Sheets...")
 try:
+    # Un filtro puesto a mano en la hoja oculta filas también a la app: lo quitamos
+    try:
+        hoja_plantillas.clear_basic_filter()
+    except Exception:
+        pass
     hoja_plantillas.clear()
     hoja_plantillas.update(values=datos_a_guardar, range_name='A1', value_input_option='USER_ENTERED')
     print("¡PLANTILLAS ACTUALIZADAS CON ÉXITO!")

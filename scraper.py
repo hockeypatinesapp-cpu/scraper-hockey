@@ -104,6 +104,11 @@ for liga_id, nombre_cat in categorias.items():
 
 print("4. Actualizando base de datos central...")
 try:
+    # Un filtro puesto a mano en la hoja oculta filas también a la app: lo quitamos
+    try:
+        hoja.clear_basic_filter()
+    except Exception:
+        pass
     hoja.clear()
     hoja.update(values=datos_a_guardar, range_name='A1', value_input_option='USER_ENTERED')
 except TypeError:
