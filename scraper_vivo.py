@@ -68,10 +68,21 @@ if not firebase_admin._apps:
     cred = credentials.Certificate(credenciales_firebase)
     firebase_admin.initialize_app(cred)
 
+def clave_categoria(texto):
+    """Clave común app/FMP: 'CTO AUT SUB-17 FEMENINO' / 'Sub17' -> 'SUB17'; '1ª AUTONÓMICA MASCULINA' / 'AutMas' -> 'AUTMAS'."""
+    n = ''.join(ch for ch in normalizar_texto(texto) if ch.isalnum())
+    if not n: return ""
+    if "SUB17" in n: return "SUB17"
+    if "JUNIOR" in n: return "JUNIOR"
+    if "FEM" in n: return "AUTFEM"
+    if "MAS" in n: return "AUTMAS"
+    return n
+
 def enviar_alerta_push(categoria_partido, titulo, cuerpo, categoria_fmp=""):
     tokens_destino = []
     cat_partido_limpia = normalizar_id(categoria_partido)
     cat_fmp_limpia = normalizar_id(categoria_fmp)
+    clave_partido = clave_categoria(categoria_fmp or categoria_partido)
 
     # Todos los nombres que tiene esta categoría en Categorias_FMP
     alias = set()
@@ -83,7 +94,8 @@ def enviar_alerta_push(categoria_partido, titulo, cuerpo, categoria_fmp=""):
         if not cat_guardada_limpia:
             continue
         if (cat_guardada_limpia in cat_partido_limpia or cat_partido_limpia in cat_guardada_limpia
-                or cat_guardada_limpia in alias):
+                or cat_guardada_limpia in alias
+                or (clave_partido and clave_categoria(cat_guardada_limpia) == clave_partido)):
             tokens_destino.extend(tokens)
             
     tokens_destino = list(set(tokens_destino)) 
