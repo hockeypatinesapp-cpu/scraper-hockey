@@ -49,6 +49,21 @@ categorias, TEMPORADA = leer_categorias(gc.open_by_key(os.environ['SHEET_ID']), 
 # Cabeceras ampliadas con ID Equipo, Logo y Bandera
 datos_a_guardar = [["Categoría", "Equipo Oficial", "Equipo Coloquial", "Equipo Abrev", "ID Equipo", "Logo Club", "Bandera", "Nombre Jugador", "ID Jugador", "Foto URL", "Goles", "PJ", "Media Goles", "Asistencias", "Media Asist", "Faltas Directas", "Media FD", "Penaltis", "Media Pen", "Azules", "Media Azules", "Rojas", "Media Rojas", "Última Actualización"]]
 
+def buscar_foto(id_jugador, id_equipo, liga_id, headers):
+    """Foto de la ficha del jugador en la temporada actual ('' si no tiene o falla)."""
+    url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_{TEMPORADA}.php"
+    payload_perfil = {'idm': '1', 'idc': liga_id, 'id_player': id_jugador, 'team_id': id_equipo, 'temp_name': ''}
+    try:
+        res_perfil = requests.post(url_perfil, headers=headers, data=payload_perfil, timeout=20)
+        soup_perfil = BeautifulSoup(res_perfil.text, 'html.parser')
+        div_foto = soup_perfil.find('div', class_='player_profile_picture')
+        if div_foto and 'url(' in div_foto.get('style', ''):
+            return div_foto['style'].split('url(')[1].split(')')[0].strip("'\" ")
+    except Exception:
+        pass
+    return ""
+
+fotos_nuevas = 0
 print("3. Extrayendo las estadísticas de los jugadores...")
 for liga_id, nombre_cat in categorias.items():
     print(f" -> Procesando liga: {nombre_cat}...")
@@ -96,34 +111,19 @@ for liga_id, nombre_cat in categorias.items():
             id_jugador = enlace.get('id_player', '').strip()
             id_equipo = enlace.get('team_id', '').strip()
             
-            # --- 4. EXTRACCIÓN DE FOTO (SEGÚN EL MODO) ---
-            url_foto = ""
-            if TIPO_ACTUALIZACION == "COMPLETA":
-                # MODO LENTO: Buscamos la foto en la federación
-                if id_jugador and id_equipo:
-                    url_perfil = f"https://www.server2.sidgad.es/fmp/profiles/fmp_profileseason_{id_jugador}_1_{TEMPORADA}.php"
-                    payload_perfil = {
-                        'idm': '1', 'idc': liga_id, 'id_player': id_jugador,
-                        'team_id': id_equipo, 'temp_name': ''
-                    }
-                    try:
-                        res_perfil = requests.post(url_perfil, headers=headers, data=payload_perfil)
-                        soup_perfil = BeautifulSoup(res_perfil.text, 'html.parser')
-                        div_foto = soup_perfil.find('div', class_='player_profile_picture')
-                        
-                        if div_foto and 'style' in div_foto.attrs:
-                            estilo = div_foto['style']
-                            if 'url(' in estilo:
-                                parte_derecha = estilo.split('url(')[1]
-                                url_sucia = parte_derecha.split(')')[0]
-                                url_foto = url_sucia.strip("'\" ")
-                    except Exception:
-                        pass
-                    time.sleep(0.5) # Pausa para no saturar al servidor
-            else:
-                # MODO RÁPIDO (LIGERA): Tiramos de la foto que ya teníamos guardada
-                url_foto = fotos_guardadas.get(id_jugador, "")
-            
+            # --- 4. FOTO ---
+            # Partimos de la foto ya guardada. Se busca en la federación:
+            #  - en modo COMPLETA (día 1 de cada mes): para todos los jugadores
+            #  - en modo LIGERA (cada día): solo para los que aún no tienen foto
+            # Si la búsqueda falla, se conserva la foto guardada (nunca se borra).
+            url_foto = fotos_guardadas.get(id_jugador, "")
+            if id_jugador and id_equipo and (TIPO_ACTUALIZACION == "COMPLETA" or not url_foto):
+                nueva = buscar_foto(id_jugador, id_equipo, liga_id, headers)
+                if nueva:
+                    if not url_foto: fotos_nuevas += 1
+                    url_foto = nueva
+                time.sleep(0.5) # Pausa para no saturar al servidor
+
             # --- 5. ESTADÍSTICAS ---
             goles = columnas[5].text.strip()
             pj = columnas[6].text.strip()
@@ -152,6 +152,7 @@ for liga_id, nombre_cat in categorias.items():
     except Exception as e:
         print(f"      ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
+print(f"   -> Fotos nuevas encontradas: {fotos_nuevas}")
 print("4. Guardando en Google Sheets...")
 try:
     # Un filtro puesto a mano en la hoja oculta filas también a la app: lo quitamos
