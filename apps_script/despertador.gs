@@ -22,7 +22,7 @@
 const DESP_REPO = 'hockeypatinesapp-cpu/scraper-hockey';
 const DESP_ZONA = 'Europe/Madrid';
 const DESP_HORA_DIARIA = 6;          // 06:00 Madrid
-const DESP_MINUTOS_ANTES = 65;       // el Vigilante acepta hasta 90 min antes
+const DESP_MINUTOS_ANTES = 40;       // el Vigilante acepta hasta 90 min antes
 const DESP_MINUTOS_DESPUES = 150;    // margen máximo de duración de un partido
 const DESP_ESPERA_MIN = 12; // min: evita lanzar dos veces seguidas
 const DESP_PALABRAS_EQUIPO = ['ROZAS', 'ROZ'];
