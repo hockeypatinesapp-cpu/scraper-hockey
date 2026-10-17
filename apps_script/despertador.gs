@@ -8,7 +8,8 @@
  *
  *   1. Robots diarios: a partir de DESP_HORA_DIARIA lanza Calendario + Plantillas
  *      (una vez al día; el día 1 de cada mes, Plantillas en modo COMPLETA).
- *   2. Vigilante en vivo: si un partido de Las Rozas de tus categorías
+ *   2. Aviso semanal: los lunes a partir de DESP_HORA_SEMANAL envía los partidos de la semana.
+ *   3. Vigilante en vivo: si un partido de Las Rozas de tus categorías
  *      (columna A de Categorias_FMP) empieza en menos de DESP_MINUTOS_ANTES,
  *      o está en juego, y el Vigilante no está ya funcionando, lo lanza.
  *
@@ -27,6 +28,7 @@ const DESP_MINUTOS_DESPUES = 150;    // margen máximo de duración de un partid
 const DESP_ESPERA_MIN = 12; // min: evita lanzar dos veces seguidas
 const DESP_PALABRAS_EQUIPO = ['ROZAS', 'ROZ'];
 const DESP_HOJA_LOG = 'Despertador_Log';
+const DESP_HORA_SEMANAL = 9;        // lunes 09:00 Madrid: aviso semanal de partidos
 
 // ─────────────────────────────────────────────────────────────────────────
 //  FUNCIONES QUE PUEDES EJECUTAR TÚ (menú desplegable de arriba → Ejecutar)
@@ -68,6 +70,7 @@ function despertarRobots() {
   if (!lock.tryLock(10000)) return;
   try {
     despRobotsDiarios_();
+    despAvisoSemanal_();
     despVigilante_();
   } catch (e) {
     despLog_('❌ Error: ' + e.message);
@@ -90,6 +93,20 @@ function despRobotsDiarios_() {
   if (ok1 && ok2) {
     props.setProperty('ULTIMO_DIARIO', hoy);
     despLog_(`🌅 Robots diarios lanzados (Calendario + Plantillas ${tipo}).`);
+  }
+}
+
+/** Lunes a partir de las 9:00: aviso con los partidos de la semana (una vez por lunes). */
+function despAvisoSemanal_() {
+  const props = PropertiesService.getScriptProperties();
+  const ahora = new Date();
+  const esLunes = Utilities.formatDate(ahora, DESP_ZONA, 'u') === '1';
+  const hora = Number(Utilities.formatDate(ahora, DESP_ZONA, 'H'));
+  const hoy = Utilities.formatDate(ahora, DESP_ZONA, 'yyyy-MM-dd');
+  if (!esLunes || hora < DESP_HORA_SEMANAL || props.getProperty('ULTIMO_SEMANAL') === hoy) return;
+  if (despLanzar_('aviso_semanal.yml', { modo: 'enviar' })) {
+    props.setProperty('ULTIMO_SEMANAL', hoy);
+    despLog_('📅 Aviso semanal lanzado.');
   }
 }
 

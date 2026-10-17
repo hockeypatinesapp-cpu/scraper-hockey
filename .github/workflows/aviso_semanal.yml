@@ -1,0 +1,32 @@
+name: Aviso semanal de partidos
+
+# Lo lanza el Despertador de la hoja cada lunes a las 9:00 (sin programación
+# propia en GitHub para evitar envíos duplicados o con horas de retraso).
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'prueba = no envía, solo lo anota en Despertador_Log · enviar = manda las notificaciones'
+        required: true
+        default: 'prueba'
+        type: choice
+        options:
+          - prueba
+          - enviar
+
+jobs:
+  aviso-semanal:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Calcular y enviar el aviso semanal
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          MODO: ${{ github.event.inputs.modo }}
+        run: python aviso_semanal.py
