@@ -19,6 +19,7 @@ import pytz
 ZONA = pytz.timezone('Europe/Madrid')
 PALABRAS_EQUIPO = ["ROZAS", "ROZ"]
 DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+URL_APP = 'https://la-azul.web.app/'   # al tocar el aviso se abre la app (pestaña Inicio)
 MODO = os.environ.get('MODO', 'prueba').strip().lower()
 
 
@@ -130,7 +131,8 @@ def main():
         if not firebase_admin._apps:
             firebase_admin.initialize_app(credentials.Certificate(json.loads(os.environ['FIREBASE_JSON'])))
         mensajes = [
-            messaging.Message(notification=messaging.Notification(title=titulo, body='\n'.join(lineas)), token=token)
+            messaging.Message(notification=messaging.Notification(title=titulo, body='\n'.join(lineas)), token=token,
+                              webpush=messaging.WebpushConfig(fcm_options=messaging.WebpushFCMOptions(link=URL_APP)))
             for token, lineas in avisos.items()
         ]
         for i in range(0, len(mensajes), 500):

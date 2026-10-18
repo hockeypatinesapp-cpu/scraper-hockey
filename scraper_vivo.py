@@ -105,6 +105,7 @@ def enviar_alerta_push(categoria_partido, titulo, cuerpo, categoria_fmp=""):
     if tokens_destino:
         mensaje = messaging.MulticastMessage(
             notification=messaging.Notification(title=titulo, body=cuerpo),
+            webpush=messaging.WebpushConfig(fcm_options=messaging.WebpushFCMOptions(link=URL_APP)),
             tokens=tokens_destino
         )
         try:
@@ -132,6 +133,7 @@ except: pass
 
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
 headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
+URL_APP = 'https://la-azul.web.app/'   # al tocar el aviso se abre la app (pestaña Inicio)
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 tiempo_inicio = time.time()
 minutos_maximos = 13.0 
