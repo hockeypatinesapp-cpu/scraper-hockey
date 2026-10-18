@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import gspread
@@ -10,7 +11,7 @@ import unicodedata
 from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from ficha_fmp import leer_ficha, gol_con_marcador, detalle_gol
+from ficha_fmp import leer_ficha, gol_con_marcador, detalle_gol, quien_marca
 
 def normalizar_texto(texto):
     """Elimina acentos, diacríticos, espacios laterales y convierte a mayúsculas."""
@@ -263,14 +264,30 @@ while True:
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in sit_limpia:
                     detalle = detalle_gol(gol_con_marcador(ficha, resultado))
                     cuerpo_gol = f"{nom_loc_col} {resultado} {nom_vis_col}" + (f"\n{detalle}" if detalle else "")
-                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", cuerpo_gol, cat_original)
+                    lado = quien_marca(res_viejo, resultado)
+                    autor = nom_loc_col if lado == 'local' else nom_vis_col if lado == 'visitante' else ""
+                    goles = lambda m: sum(int(x) for x in re.findall(r'\d+', m or '')[:2])
+                    if goles(resultado) < goles(res_viejo):
+                        # La mesa ha quitado un gol (anulado o error al anotar)
+                        enviar_alerta_push(cat_escribir, f"ℹ️ Marcador corregido - {cat_escribir}", f"{nom_loc_col} {resultado} {nom_vis_col}", cat_original)
+                    else:
+                        titulo_gol = f"🥅 ¡Gol de {autor}! - {cat_escribir}" if autor else f"🥅 ¡Gol! - {cat_escribir}"
+                        enviar_alerta_push(cat_escribir, titulo_gol, cuerpo_gol, cat_original)
                     marcadores_viejos[clave] = resultado 
                 elif res_viejo is None and resultado != "" and "SIN COMENZAR" not in sit_limpia:
                     # Primer marcador visto en esta ejecución: lo apuntamos para detectar el siguiente gol
                     marcadores_viejos[clave] = resultado
 
+                # Descanso y comienzo de la 2ª parte (recordando el marcador)
+                est_viejo_limpio = normalizar_texto(est_viejo) if est_viejo else ""
+                marcador_txt = f"{nom_loc_col} {resultado or '0:0'} {nom_vis_col}"
+                if "DESCANSO" in sit_limpia and est_viejo and "DESCANSO" not in est_viejo_limpio:
+                    enviar_alerta_push(cat_escribir, f"ℹ️ Descanso - {cat_escribir}", f"Final de la 1ª parte: {marcador_txt}", cat_original)
+                if "PERIODO 2" in sit_limpia and est_viejo and ("DESCANSO" in est_viejo_limpio or "PERIODO 1" in est_viejo_limpio):
+                    enviar_alerta_push(cat_escribir, f"ℹ️ Comienza la 2ª parte - {cat_escribir}", marcador_txt, cat_original)
+
                 if "FINAL" in sit_limpia and est_viejo is not None and "FINAL" not in normalizar_texto(est_viejo):
-                    enviar_alerta_push(cat_escribir, f"🏁 Final del partido - {cat_escribir}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}", cat_original)
+                    enviar_alerta_push(cat_escribir, f"🔔 Final del partido - {cat_escribir}", f"Resultado final: {nom_loc_col} {resultado} {nom_vis_col}", cat_original)
                     subprocess.run(["python", "scraper.py"])
                     subprocess.run(["python", "scraper_clasificacion.py"])
                     subprocess.run(["python", "scraper_plantillas.py"])

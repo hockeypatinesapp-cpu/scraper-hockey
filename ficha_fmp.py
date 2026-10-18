@@ -97,13 +97,26 @@ def gol_con_marcador(ficha, marcador):
     return None
 
 
+def quien_marca(marcador_viejo, marcador_nuevo):
+    """'2:0' -> '3:0' = 'local'; '2:0' -> '2:1' = 'visitante'; otro caso (corrección, dos goles a la vez...) = None"""
+    a, b = normalizar_marcador(marcador_viejo) or '0-0', normalizar_marcador(marcador_nuevo)
+    if not a or not b:
+        return None
+    (l1, v1), (l2, v2) = [tuple(int(x) for x in m.split('-')) for m in (a, b)]
+    if l2 > l1 and v2 == v1:
+        return 'local'
+    if v2 > v1 and l2 == l1:
+        return 'visitante'
+    return None
+
+
 def detalle_gol(gol):
-    """-> '⚽ Noa Espinosa Burke · 1ª parte, quedaban 07:12' (o '' si no hay datos)"""
+    """-> '🏑 Noa Espinosa Burke · 1ª parte, quedaban 07:12' (o '' si no hay datos)"""
     if not gol:
         return ''
     partes = []
     if gol.get('jugador'):
-        partes.append(f"⚽ {gol['jugador']}")
+        partes.append(f"🏑 {gol['jugador']}")
     per = periodo_legible(f"PERIODO {gol['periodo'][1:]}" if re.fullmatch(r'P\d', gol.get('periodo', '')) else gol.get('periodo', ''))
     cuando = ', '.join(x for x in [per, f"quedaban {gol['reloj']}" if gol.get('reloj') else ''] if x)
     if cuando:
