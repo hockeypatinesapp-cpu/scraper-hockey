@@ -10,6 +10,7 @@ import unicodedata
 from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from ficha_fmp import leer_ficha, gol_con_marcador, detalle_gol
 
 def normalizar_texto(texto):
     """Elimina acentos, diacríticos, espacios laterales y convierte a mayúsculas."""
@@ -146,7 +147,7 @@ while True:
         continue
     
     partidos_html = soup.find_all(['a', 'div'], class_=lambda c: c and 'scorer_game' in c)
-    nuevos_datos = [["Categoría", "Jornada", "Fecha", "Hora", "Situación", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado en Vivo", "Hora del aviso"]]
+    nuevos_datos = [["Categoría", "Jornada", "Fecha", "Hora", "Situación", "Local Oficial", "Local Coloquial", "Local Abrev.", "Logo Local", "Visitante Oficial", "Visitante Coloquial", "Visitante Abrev.", "Logo Visitante", "Resultado en Vivo", "Hora del aviso", "Reloj"]]
     
     hay_objetivos_en_juego = False
     hay_objetivos_en_descanso = False
@@ -237,10 +238,17 @@ while True:
             bot_right_div = partido.find('div', class_='scorer_bot_right')
             jornada = bot_right_div.text.strip() if bot_right_div else ""
             hora_registro = ahora_espana.strftime("%d/%m/%Y %H:%M:%S")
+
+            # Ficha del partido (solo los nuestros y en juego): reloj del periodo y autores de los goles
+            ficha = None
+            if es_objetivo and sit_limpia and "SIN COMENZAR" not in sit_limpia and not any(
+                    e in sit_limpia for e in ["FINAL", "APLAZAD", "CANCELAD", "SUSPENDID"]):
+                ficha = leer_ficha(partido.get('idp'))
+            reloj = ficha['reloj'] if ficha and "DESCANSO" not in sit_limpia else ""
             
             nuevos_datos.append([
                 cat_escribir, jornada, fecha_p, hora_p, situacion, datos_loc["oficial"], nom_loc_col, abrev_loc, img_loc['src'] if img_loc else "",
-                datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", resultado, hora_registro
+                datos_vis["oficial"], nom_vis_col, abrev_vis, img_vis['src'] if img_vis else "", resultado, hora_registro, reloj
             ])
             
             if es_objetivo:
@@ -253,7 +261,9 @@ while True:
                     estados_viejos[clave] = situacion
 
                 if res_viejo is not None and res_viejo != resultado and resultado != "" and "SIN COMENZAR" not in sit_limpia:
-                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", f"{nom_loc_col} {resultado} {nom_vis_col}", cat_original)
+                    detalle = detalle_gol(gol_con_marcador(ficha, resultado))
+                    cuerpo_gol = f"{nom_loc_col} {resultado} {nom_vis_col}" + (f"\n{detalle}" if detalle else "")
+                    enviar_alerta_push(cat_escribir, f"🚨 ¡GOL! - {cat_escribir}", cuerpo_gol, cat_original)
                     marcadores_viejos[clave] = resultado 
                 elif res_viejo is None and resultado != "" and "SIN COMENZAR" not in sit_limpia:
                     # Primer marcador visto en esta ejecución: lo apuntamos para detectar el siguiente gol
@@ -274,6 +284,8 @@ while True:
             # print(f"Error procesando partido: {e}")
             continue 
 
+    if hoja_memoria.col_count < len(nuevos_datos[0]):
+        hoja_memoria.add_cols(len(nuevos_datos[0]) - hoja_memoria.col_count)
     hoja_memoria.clear()
     hoja_memoria.update(values=nuevos_datos, range_name='A1')
 
