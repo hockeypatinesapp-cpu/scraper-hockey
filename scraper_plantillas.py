@@ -7,7 +7,7 @@ import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 # --- INTERRUPTOR DE MODO ---
 # Leerá la orden desde GitHub. Si no recibe ninguna orden, por seguridad hará la "LIGERA".
@@ -71,7 +71,7 @@ for liga_id, nombre_cat in categorias.items():
     try:
         url_stats = f"https://www.server2.sidgad.es/fmp/fmp_stats_1_{liga_id}.php"
         headers = {
-            'User-Agent': NAVEGADOR,
+            **CABECERAS,
             'Origin': 'http://www.hockeypatines.fmp.es',
             'Referer': f'http://www.hockeypatines.fmp.es/league/{liga_id}',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'

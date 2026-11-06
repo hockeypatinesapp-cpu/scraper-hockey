@@ -4,7 +4,7 @@ import gspread
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -13,7 +13,7 @@ hoja = gc.open_by_key(os.environ['SHEET_ID']).worksheet("Diccionario_Equipos")
 
 print("2. Leyendo la web del directorio de clubes...")
 url = "https://www.fmp.es/clubes-de-hockey-sobre-patines/"
-headers = {'User-Agent': NAVEGADOR}
+headers = {**CABECERAS}
 
 respuesta = requests.get(url, headers=headers)
 soup = BeautifulSoup(respuesta.text, 'html.parser')

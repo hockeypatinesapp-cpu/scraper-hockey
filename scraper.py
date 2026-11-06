@@ -6,7 +6,7 @@ import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias, limpiar_fase
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -38,7 +38,7 @@ for liga_id, nombre_cat in categorias.items():
     try:
         url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
         headers = {
-            'User-Agent': NAVEGADOR,
+            **CABECERAS,
             'Origin': 'http://www.hockeypatines.fmp.es',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }

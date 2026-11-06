@@ -11,10 +11,10 @@ De ahí sacamos lo que el marcador general no trae:
 import re
 import requests
 from bs4 import BeautifulSoup
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 URL_FICHA = "https://www.server2.sidgad.es/fmp/fmp_gr_{idp}_1.php"
-HEADERS = {'User-Agent': NAVEGADOR, 'Origin': 'http://www.hockeypatines.fmp.es'}
+HEADERS = {**CABECERAS, 'Origin': 'http://www.hockeypatines.fmp.es'}
 
 
 def _texto(nodo):

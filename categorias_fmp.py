@@ -17,11 +17,11 @@ import unicodedata
 
 import requests
 from bs4 import BeautifulSoup
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 URL_LISTADO = "https://www.server2.sidgad.es/fmp/fmp_ls_1.php"
 HEADERS = {
-    'User-Agent': NAVEGADOR,
+    **CABECERAS,
     'Origin': 'https://www.hockeypatines.fmp.es',
     'Referer': 'https://www.hockeypatines.fmp.es/',
 }

@@ -12,7 +12,7 @@ from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from ficha_fmp import leer_ficha, gol_con_marcador, detalle_gol, quien_marca
-from fmp_http import NAVEGADOR
+from fmp_http import NAVEGADOR, CABECERAS
 
 def normalizar_texto(texto):
     """Elimina acentos, diacríticos, espacios laterales y convierte a mayúsculas."""
@@ -133,7 +133,7 @@ try:
 except: pass
 
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
-headers = {'User-Agent': NAVEGADOR, 'Origin': 'http://www.hockeypatines.fmp.es'}
+headers = {**CABECERAS, 'Origin': 'http://www.hockeypatines.fmp.es'}
 URL_APP = 'https://la-azul.web.app/'   # al tocar el aviso se abre la app (pestaña Inicio)
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 tiempo_inicio = time.time()
