@@ -6,6 +6,7 @@ import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias, limpiar_fase
+from fmp_http import NAVEGADOR
 
 print("1. Conectando a tu Google Sheets...")
 credenciales = json.loads(os.environ['CREDENTIALS_JSON'])
@@ -37,7 +38,7 @@ for liga_id, nombre_cat in categorias.items():
     try:
         url_secreta = f"https://www.server2.sidgad.es/fmp/fmp_cal_idc_{liga_id}_1.php"
         headers = {
-            'User-Agent': 'Mozilla/5.0',
+            'User-Agent': NAVEGADOR,
             'Origin': 'http://www.hockeypatines.fmp.es',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }
@@ -102,6 +103,10 @@ for liga_id, nombre_cat in categorias.items():
     except Exception as e:
         print(f"    ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
+if len(datos_a_guardar) <= 1:
+    # La FMP no ha devuelto nada (web caída o nos bloquea): NO borramos lo que ya hay en la hoja
+    print("❌ La FMP no ha devuelto datos. Dejo la hoja como estaba.")
+    raise SystemExit(1)
 print("4. Actualizando base de datos central...")
 try:
     # Un filtro puesto a mano en la hoja oculta filas también a la app: lo quitamos

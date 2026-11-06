@@ -7,6 +7,7 @@ import pytz
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from categorias_fmp import leer_categorias
+from fmp_http import NAVEGADOR
 
 # --- INTERRUPTOR DE MODO ---
 # Leerá la orden desde GitHub. Si no recibe ninguna orden, por seguridad hará la "LIGERA".
@@ -70,7 +71,7 @@ for liga_id, nombre_cat in categorias.items():
     try:
         url_stats = f"https://www.server2.sidgad.es/fmp/fmp_stats_1_{liga_id}.php"
         headers = {
-            'User-Agent': 'Mozilla/5.0',
+            'User-Agent': NAVEGADOR,
             'Origin': 'http://www.hockeypatines.fmp.es',
             'Referer': f'http://www.hockeypatines.fmp.es/league/{liga_id}',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
@@ -153,6 +154,10 @@ for liga_id, nombre_cat in categorias.items():
         print(f"      ❌ Error aislado procesando la liga {nombre_cat}: {e}")
 
 print(f"   -> Fotos nuevas encontradas: {fotos_nuevas}")
+if len(datos_a_guardar) <= 1:
+    # La FMP no ha devuelto nada (web caída o nos bloquea): NO borramos lo que ya hay en la hoja
+    print("❌ La FMP no ha devuelto datos. Dejo la hoja como estaba.")
+    raise SystemExit(1)
 print("4. Guardando en Google Sheets...")
 try:
     # Un filtro puesto a mano en la hoja oculta filas también a la app: lo quitamos

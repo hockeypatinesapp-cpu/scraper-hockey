@@ -12,6 +12,7 @@ from firebase_admin import credentials, messaging
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from ficha_fmp import leer_ficha, gol_con_marcador, detalle_gol, quien_marca
+from fmp_http import NAVEGADOR
 
 def normalizar_texto(texto):
     """Elimina acentos, diacríticos, espacios laterales y convierte a mayúsculas."""
@@ -132,7 +133,7 @@ try:
 except: pass
 
 url_vivo = "https://www.server2.sidgad.es/fmp/fmp_mc_1.php"
-headers = {'User-Agent': 'Mozilla/5.0', 'Origin': 'http://www.hockeypatines.fmp.es'}
+headers = {'User-Agent': NAVEGADOR, 'Origin': 'http://www.hockeypatines.fmp.es'}
 URL_APP = 'https://la-azul.web.app/'   # al tocar el aviso se abre la app (pestaña Inicio)
 PALABRAS_EQUIPO_OBJETIVO = ["ROZAS", "ROZ"]
 tiempo_inicio = time.time()
@@ -144,8 +145,14 @@ while True:
     
     try:
         respuesta = requests.post(url_vivo, headers=headers, timeout=10)
+        respuesta.raise_for_status()
         soup = BeautifulSoup(respuesta.text, 'html.parser')
-    except:
+        fallos_seguidos = 0
+    except Exception as e:
+        fallos_seguidos = globals().get('fallos_seguidos', 0) + 1
+        print(f"⚠️ La FMP no responde ({e}). Intento {fallos_seguidos}/5.")
+        if fallos_seguidos >= 5:
+            raise SystemExit("❌ La FMP no responde: me apago sin tocar Memoria_Vivo.")
         time.sleep(60)
         continue
     
@@ -305,8 +312,9 @@ while True:
 
     if hoja_memoria.col_count < len(nuevos_datos[0]):
         hoja_memoria.add_cols(len(nuevos_datos[0]) - hoja_memoria.col_count)
-    hoja_memoria.clear()
-    hoja_memoria.update(values=nuevos_datos, range_name='A1')
+    if len(nuevos_datos) > 1:   # nunca vaciar la memoria por un marcador vacío
+        hoja_memoria.clear()
+        hoja_memoria.update(values=nuevos_datos, range_name='A1')
 
     if not hay_objetivos_en_juego:
         print("\n😴 No hay partidos en juego. Me apago.")
